@@ -374,14 +374,95 @@ pbp
 ```
 
 
-Create a unilateral "result" variable. Right now there are two vars (field goal result and xp result.)
+Create a unilateral "result" variable. Right now there are two vars (field goal result and xp result.) What I'm doing here is counting blocked and aborted values from both field goals and extra points as failed attempts or 0's, while successful trys are 1's. Alternatively if you wanted to just purely focus on made and missed kicks we could drop all values that are blocked from field_goal_result and all values that are aborted or blocked from extra_point_result before mutating to create a final result variable.
 
 ```{r}
-pbp = pbp%>%
-  mutate(result = ifelse(field_goal_result == "made" | extra_point_result == "good", 1, 0))
+pbp = pbp %>%
+  mutate(
+    result = case_when(
+      field_goal_result == "made" ~ 1,
+      field_goal_result %in% c("missed", "blocked") ~ 0,
+      extra_point_result == "good" ~ 1,
+      extra_point_result %in% c("failed", "blocked", "aborted") ~ 0))
 
 pbp
 ```
+
+Look at the variables we have remaining
+
+```{r}
+str(pbp)
+```
+We have 73 features left in our data. We can still clean this up because there's a fear vars that are either duplicates or we can proxy with others.I'm dropping the results because we now have the final mutated column. We don't need the play description or yard line (it's a combination of field side and actual yard line). Play type we can proxy through the field goal/xp flag columns; we don't need tackle/fumble variables either. The first stadium var in the data has too many NA's so we'll use the latter. Same with weather. and play clock since they're missing from 1999 and 2000 entirely. I also don't think home/ away coaching will help our analysis just because there might be too many factor levels with the amount of different coaches. 
+
+```{r}
+pbp = pbp%>%
+  select(-yrdln, 
+         -desc,
+         -extra_point_result,
+         -field_goal_result,
+         -play_type,
+         -tackle_with_assist_1_player_name,
+         -tackle_with_assist_2_player_id,
+         -tackle_with_assist_2_player_name,
+         -fumble_recovery_1_yards,
+         -fumble_recovery_2_yards,
+         -stadium,
+         -weather,
+         -play_clock,
+         -home_coach,
+         -away_coach)
+
+pbp
+```
+
+Now here's another big question.....do we keep all of the epa and wpa data in? 
+I also want to look at the NA's we have remaining in our data
+
+```{r}
+str(pbp)
+
+colSums(is.na(pbp))
+```
+
+##Dealing with NA's and Deciding if we want to keep epa/wpa data baked in
+Going through these NA's, the first thing that is apparent to me is that all of the temperature and wind data is missing from indoor stadiums (this is an easy fix...we can look up what the average is across the league for indoor football stadiums for both or use mean's to impute). Drive, Yards Net and First Downs look like they're potentially off of turnovers (so the kicking team got the ball to start the possession off of a turnover and for some reason those vars weren't measures). We could either drop these vars or probably best impute them using MICE (the only other way would be to go back to the very original data set and fix the drive # in the original data). Kicker player name and ID we are going to at least need the name of those 31 kickers so I might look up those games manually and impute them myself.
+
+Starting with the Kickers
+```{r}
+missing_kickers = pbp%>%
+  filter(is.na(kicker_player_name ))
+
+missing_kickers
+```
+
+Create a table of fixed Kicker Names
+```{r}
+fixed_names = data.frame(
+  game_date = as.Date(c("2014-11-16", "2012-10-21", "2012-09-27", "2010-12-12", "2010-11-21
+", "2010-10-31", "2009-10-18"
+)),
+  kicker_player_name = c("Mason Crosby", "Phil Dawson", "Phil Dawson", "Graham Gano", "Garrett Hartley", "Kris Brown", "Josh Scobee")
+)
+```
+
+Join that table with the pbp data to replace the missing kickers
+```{r}
+pbp = pbp%>%
+  mutate(game_date = as.Date(game_date))%>%
+  left_join(fixed_names, by = "game_date", suffix = c("", "_fix"))%>%
+  mutate(
+    kicker_player_name = if_else(is.na(kicker_player_name), kicker_player_name_fix, kicker_player_name))%>%
+  select(-kicker_player_name_fix)
+
+pbp
+```
+
+
+
+
+
+
 
 
 
