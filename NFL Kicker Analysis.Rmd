@@ -440,9 +440,9 @@ Create a table of fixed Kicker Names
 ```{r}
 fixed_names = data.frame(
   game_date = as.Date(c("2014-11-16", "2012-10-21", "2012-09-27", "2010-12-12", "2010-11-21
-", "2010-10-31", "2009-10-18"
+", "2010-10-31", "2009-10-18", "2009-09-27", "2008-12-28", "2008-11-16", "2008-10-26", "2008-09-21", "2007-12-16", "2007-12-09", "2007-11-25", "2007-09-09", "2007-02-04", "2006-12-24", "2006-12-10", "2006-12-11", "2005-12-24", "2005-12-18", "2004-12-19", "2004-11-21", "2003-12-07", "2003-09-21", "2002-12-15", "2002-11-24", "2002-11-11", "2002-10-20", "2002-09-15"
 )),
-  kicker_player_name = c("Mason Crosby", "Phil Dawson", "Phil Dawson", "Graham Gano", "Garrett Hartley", "Kris Brown", "Josh Scobee")
+  kicker_player_name = c("M.Crosby", "P.Dawson", "P.Dawson", "G.Gano", "G.Hartley", "K.Brown", "J.Scobee", "S.Graham", "D.Carpenter", "L.Tynes", "N.Rackers", "K.Brown", "J.Scobee", "J.Brown", "N.Kaeding", "L.Tynes", "A.Vinatieri", "S.Graham", "J.Nedney", "J.Wilkins", "J.Elam", "N.Rackers", "J.Hanson", "M.Stover", "T.Peterson", "A.Elling", "P.Dawson", "J.Tuthill", "S.Janikowski", "B.Cundiff", "H.Epstein")
 )
 ```
 
@@ -456,8 +456,39 @@ pbp = pbp%>%
   select(-kicker_player_name_fix)
 
 pbp
+
+sum(is.na(pbp$kicker_player_name))
 ```
 
+Check Out where else we have NA's 
+```{r}
+colSums(is.na(pbp))
+```
+
+Fixing the kicker ID's (or at least attempting to....some encoding issue is making the names not match in our lookup table vs the db)
+```{r}
+
+kicker_lookup = tibble(
+  kicker_player_name = c(
+    "M.Crosby", "P.Dawson", "G.Gano", "G.Hartley", "K.Brown", "J.Scobee", 
+    "S.Graham", "D.Carpenter", "L.Tynes", "N.Rackers", "J.Brown", "N.Kaeding", 
+    "A.Vinatieri", "J.Nedney", "J.Wilkins", "J.Elam", "J.Hanson", "M.Stover", 
+    "T.Peterson", "A.Elling", "J.Tuthill", "S.Janikowski", "B.Cundiff", "H.Epstein"),
+  kicker_player_id = c(
+    "00-0025580", "00-0004091", "00-0026858", "00-0025824", "00-0001980", "00-0022874", 
+    "00-0019536", "00-0026003", "00-0019778", "00-0019676", "00-0021940", "00-0022737", 
+    "00-0016919", "00-0011970", "00-0017693", "00-0004811", "00-0006800", "00-0015784", 
+    "00-0012875", "00-0021080", "00-0019542", "00-0019646", "00-0020972", "00-0021347"))
+
+pbp = pbp%>%
+   mutate(kicker_player_name = trimws(kicker_player_name))%>%
+  mutate(kicker_player_name = str_replace_all(kicker_player_name, "[^[:alnum:].]", ""))%>%
+  left_join(kicker_lookup, by = "kicker_player_name", suffix = c("", ".lookup"))%>%
+  mutate(kicker_player_id = if_else(is.na(kicker_player_id), kicker_player_id.lookup, kicker_player_id))%>%
+  select(-kicker_player_id.lookup)
+
+sum(is.na(pbp$kicker_player_id))
+```
 
 
 
