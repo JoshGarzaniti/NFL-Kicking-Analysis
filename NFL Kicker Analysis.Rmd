@@ -23,6 +23,7 @@ library(ggrepel)
 library(nflreadr)
 library(nflplotR)
 library(nflfastR)
+library(mice)
 ```
 
 ##Load in Data via NFLFastR
@@ -46,6 +47,25 @@ write.csv(pbp, "G:/My Drive/Personal Projects/NFL Kicking Analysis.csv", row.nam
 ```
 
 Alternatively, if you're just starting here, you can load in this data and skip the previous steps:
+
+## Load in packages
+```{r}
+library(ggplot2)
+library(ggdark)
+library(caret)
+library(tidyverse)
+library(tidyr)
+library(stringr)
+library(xgboost)
+library(randomForest)
+library(ggrepel)
+library(nflreadr)
+library(nflplotR)
+library(nflfastR)
+library(mice)
+```
+
+#Load in saved csv
 ```{r}
 pbp = read.csv("G:/My Drive/Personal Projects/NFL Kicking Analysis.csv")
 ```
@@ -360,7 +380,8 @@ pbp = pbp%>%
          -xyac_success,
          -xyac_fd,
          -xpass,
-         -pass_oe)
+         -pass_oe,
+         -quarter_end)
 
 pbp
 ```
@@ -411,7 +432,8 @@ pbp = pbp%>%
          -weather,
          -play_clock,
          -home_coach,
-         -away_coach)
+         -away_coach,
+         -sp)
 
 pbp
 ```
@@ -490,6 +512,137 @@ pbp = pbp%>%
 sum(is.na(pbp$kicker_player_id))
 ```
 
+See what other NA's we need to clean up If you remember:
+drive
+yrdsnet
+Drive_first_down
+temp
+wind
+
+#Start with imputing stadium values for temp and wind
+here are the sources I used to back up my imputing
+https://www.reddit.com/r/nfl/comments/rxhiwg/the_nfl_should_have_indoor_teams_keep_their
+
+https://www.reddit.com/r/raiders/comments/18f6dxo/dumb_questionheaded_to_the_stadium_for_the_first/
+
+https://www.allegiantair.com/faqs
+
+https://www.tripadvisor.com/FAQ_Answers-g43323-d10639029-t4977007-What_s_the_temperature_inside_the_stadium.html
+
+https://paisano-online.com/29258/sports/dome-field-advantage/
+
+
+I'm mutating temperature for indoor stadiums to be ~70 degrees and effective wind speed to be 0 mph (since HVAC currents are incredible minimal). Note that there are some stadiums that fluctuate from 70-72 degrees and the vikings are apparently know to start colder in the season (high 80's), but for this analysis let's just use a league constant of 70.
+```{r}
+pbp = pbp%>%
+  mutate(temp = ifelse(is.na(temp), 70, temp))%>%
+  mutate(wind = ifelse(is.na(wind), 0, wind))
+```
+
+#Now to fix drive, ydsnet and drive_first_downs
+
+I'm using the MICE package here to impute values for each of these variables. What MICE does is that it creates multiple imputations for each missing value via Gibbs sampling, guesses the value based on all of the other variables in the data, and goes through x iterations of said process until it finds a good enough synthetic value to replace that missing one with. 
+
+Now MICE historically handles categorical and numerical data well so I want to look through the structure of our data to make sure we are good to use this function.
+
+https://www.geeksforgeeks.org/r-language/mice-package-in-r/
+
+Let's start by updating some data types
+
+```{r}
+pbp = pbp%>%
+  mutate(home_team = as.factor(home_team))%>%
+  mutate(away_team = as.factor(away_team))%>%
+  mutate(regular_season = ifelse(season_type == "REG", 1, 0))%>%
+  mutate(week = as.numeric(week))%>%
+  mutate(posteam = as.factor(posteam))%>%
+  mutate(posteam_type = as.factor(posteam_type))%>%
+  mutate(defteam = as.factor(defteam))%>%
+  mutate(side_of_field = as.factor(side_of_field))%>%
+  mutate(yardline_100 = as.numeric(yardline_100))%>%
+  mutate(quarter_seconds_remaining = as.numeric(quarter_seconds_remaining))%>%
+  mutate(half_seconds_remaining = as.numeric(half_seconds_remaining))%>%
+  mutate(game_seconds_remaining = as.numeric(game_seconds_remaining))%>%
+  mutate(game_half = as.factor(game_half))%>%
+  mutate(drive = as.numeric(drive))%>%
+  mutate(qtr = as.factor(qtr))%>%
+  mutate(goal_to_go = as.numeric(goal_to_go))%>%
+  mutate(ydstogo = as.numeric(ydstogo))%>%
+  mutate(ydsnet = as.numeric(ydsnet))%>%
+  mutate(kick_distance = as.numeric(kick_distance))%>%
+  mutate(home_timeouts_remaining = as.numeric(home_timeouts_remaining))%>%
+  mutate(away_timeouts_remaining = as.numeric(away_timeouts_remaining))%>%
+  mutate(total_home_score = as.numeric(total_home_score))%>%
+  mutate(total_away_score = as.numeric(total_away_score))%>%
+  mutate(penalty = as.numeric(penalty))%>%
+  mutate(extra_point_attempt = as.numeric(extra_point_attempt))%>%
+  mutate(field_goal_attempt = as.numeric(field_goal_attempt))%>%
+  mutate(season = as.numeric(season))%>%
+  mutate(series = as.numeric(series))%>%
+  mutate(drive_first_downs = as.numeric(drive_first_downs))%>%
+  mutate(div_game = as.numeric(div_game))%>%
+  mutate(roof = as.factor(roof))%>%
+  mutate(surface = as.factor(surface))%>%
+  mutate(temp = as.numeric(temp))%>%
+  mutate(wind = as.numeric(wind))%>%
+  mutate(game_stadium = as.factor(game_stadium))
+```
+
+##Subsetting data to use MICE
+variables we don't want in the subset:
+game_date, game_stadium	Redundant with season- too many levels
+kicker_player_name, kicker_player_id-	High cardinality, not predictive of drive
+penalty, extra_point_attempt, field_goal_attempt-	These often occur after or during a scoring play, may introduce leakage into drive outcome
+result-	Not helpful unless you're imputing game-level outcomes
+series, yardline_100, posteam, defteam-	May introduce bias or data leakage if you're imputing drive (since drive relates to field position and team)
+
+Let's use the rest
+
+```{r}
+pbp_mice = pbp%>%
+  select(
+    drive, drive_first_downs, ydsnet,
+    quarter_seconds_remaining, half_seconds_remaining, game_seconds_remaining,
+    game_half, qtr, goal_to_go, ydstogo,
+    total_home_score, total_away_score,
+    home_timeouts_remaining, away_timeouts_remaining,
+    kick_distance,
+    ep, epa, total_home_epa, total_away_epa,
+    wp, def_wp, home_wp, away_wp, wpa,
+    no_score_prob, opp_fg_prob, opp_safety_prob, opp_td_prob,
+    fg_prob, safety_prob, td_prob, extra_point_prob,
+    roof, surface, temp, wind,
+    season, posteam_type)
+
+pbp_mice
+```
+
+Impute using default predictive mean matching settings:
+
+```{r}
+imputed_pbp = mice(pbp_mice, m = 5, maxit = 10, method = "pmm", seed = 303)
+```
+
+Visualizing distributions of imputed and observed values 
+```{r}
+imputed_drive_plot = densityplot(imputed_pbp, ~ drive)
+
+imputed_drive_plot
+
+imputed_ydsnet_plot = densityplot(imputed_pbp, ~ ydsnet)
+
+imputed_ydsnet_plot
+
+imputed_drive_first_downs_plot = densityplot(imputed_pbp, ~ drive_first_downs)
+
+imputed_drive_first_downs_plot
+```
+
+Get imputed data back out
+
+```{r}
+pbp_imputed = complete(imputed_pbp, 3)
+```
 
 
 
