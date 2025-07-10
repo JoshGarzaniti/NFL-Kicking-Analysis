@@ -644,8 +644,139 @@ Get imputed data back out
 pbp_imputed = complete(imputed_pbp, 3)
 ```
 
+Join filled variables back up with pbp dataframe
+
+```{r}
+pbp_complete = pbp%>%
+  select(-drive, -ydsnet, -drive_first_downs)
+
+pbp_complete[, c("drive", "ydsnet", "drive_first_downs")] = 
+  pbp_imputed[, c("drive", "ydsnet", "drive_first_downs")]
+
+```
+
+Let's save our work so far
+
+```{r}
+write.csv(pbp_complete, "G:/My Drive/Personal Projects/pbp_complete.csv", row.names = FALSE)
+```
 
 
+Now we don't have to deal with missing data anymore. The next step is creating target variables. We already created on called "result" which in essence was just a make or miss variable based on if a kicker made their try attempt, but now let's make a derived variable based off of that value called probability, which is the probability of that kicker making that attempt.
+
+P(x) we can determine a few ways:
+
+we can group all of the attempts by distance, distance and weather, distance, weather turf condition, distance, weather, turf condition, temperature, and wind......or all of those and throw in the stadium. In that sense what we are doing is taking a historical average of how many attempts from that spot on that field in those conditions were made vs missed.....the thing we have to be smart about is not narrowing our sample size down too much to where we condense the number of tries going into the historical average. E.g say a there's only been one attempt at Lambeau field from 65 yards out, and miraculously the kicker made it.....on the next attempt from that location a kicker would be going up against a p(x) of 100% (which in theory says they should make that kick 100% of the time), yet we all know that's not factual in reality.
+
+if we group up by:
+distance
+roof type
+temperature
+wind speed
+and surface type
+let's see what the empircal results of each attempt are:
+
+```{r}
+pbp_complete_grouped = pbp_complete%>%
+  group_by(kick_distance, roof, temp, wind, surface)%>%
+  mutate(probability_advanced = mean(result, na.rm = TRUE))%>%
+  ungroup()
+
+pbp_complete_grouped
+```
+
+A good baseline for this is to just check by distances (our probability should be dropping of drastically by distance so let's see what that distribution looks like)
+
+```{r}
+distance_vs_probability_plot = ggplot(pbp_complete_grouped, 
+                                      mapping = aes(x = kick_distance,
+                                                    y = probability_advanced))+
+                                      geom_point()+
+                                      geom_smooth()+
+                                      dark_theme_minimal()+
+                                      labs(title = "NFL Kick Distance vs Make Probability (advanced)", subtitle = "from 1999-2024", x = "Distance", y = "Probability")
+
+distance_vs_probability_plot
+```
+What about binning vars like temp and wind?
+
+```{r}
+pbp_complete_binned = pbp_complete%>%
+  mutate(
+    temp_bin = cut(temp, breaks = c(-Inf, 30, 50, 70, 90, Inf), labels = c("cold", "chilly", "mild", "warm", "hot")),
+    wind_bin = cut(wind, breaks = c(-Inf, 5, 10, 20, Inf), labels = c("calm", "breezy", "windy", "gusty")))%>%
+  group_by(kick_distance, roof, temp_bin, wind_bin, surface)%>%
+  mutate(
+    group_n = n(),
+    probability_advanced = ifelse(group_n >= 5, mean(result, na.rm = TRUE), NA_real_))%>%
+  ungroup()%>%
+  mutate(
+    probability_advanced = ifelse(is.na(probability_advanced), mean(result, na.rm = TRUE), probability_advanced))
+```
+
+Visualizing this
+
+```{r}
+distance_vs_probability_plot_2 = ggplot(pbp_complete_binned, 
+  aes(x = kick_distance, y = probability_advanced)) +
+  geom_point(aes(size = group_n), alpha = 0.6) +
+  geom_smooth() +
+  geom_hline(
+    yintercept = mean(pbp_complete$result, na.rm = TRUE), 
+    linetype = "dashed", 
+    color = "red", 
+    alpha = 0.6)+
+  dark_theme_minimal()+
+  labs(
+    title = "NFL Kick Distance vs Make Probability (advanced)", 
+    subtitle = "from 1999-2024", 
+    x = "Distance", 
+    y = "Probability")
+
+distance_vs_probability_plot_2
+```
+
+Facet Wrap by Roof type
+
+```{r}
+distance_vs_probability_roof = ggplot(pbp_complete_binned, 
+  aes(x = kick_distance, y = probability_advanced))+
+  geom_point(aes(size = group_n), alpha = 0.6)+
+  geom_smooth(se = FALSE)+
+  geom_hline(
+    yintercept = mean(pbp_complete$result, na.rm = TRUE), 
+    linetype = "dashed", color = "red", alpha = 0.6)+
+  facet_wrap(~ roof)+
+  dark_theme_minimal()+
+  labs(
+    title = "NFL Kick Distance vs Make Probability by Roof Type",
+    subtitle = "From 1999–2024",
+    x = "Distance",
+    y = "Make Probability")
+
+distance_vs_probability_roof
+```
+
+What about Surface type is there a relationship between distance and surface type when it comes to the probability of making kicks?
+
+```{r}
+distance_vs_probability_surface = ggplot(pbp_complete_binned, 
+  aes(x = kick_distance, y = probability_advanced))+
+  geom_point(aes(size = group_n), alpha = 0.6)+
+  geom_smooth(se = FALSE) +
+  geom_hline(
+    yintercept = mean(pbp_complete$result, na.rm = TRUE), 
+    linetype = "dashed", color = "red", alpha = 0.6)+
+  facet_wrap(~ surface) +
+  dark_theme_minimal() +
+  labs(
+    title = "NFL Kick Distance vs Make Probability by Field Surface",
+    subtitle = "From 1999–2024",
+    x = "Distance",
+    y = "Make Probability")
+
+distance_vs_probability_surface
+```
 
 
 
