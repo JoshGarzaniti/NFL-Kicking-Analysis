@@ -661,6 +661,57 @@ Let's save our work so far
 write.csv(pbp_complete, "G:/My Drive/Personal Projects/pbp_complete.csv", row.names = FALSE)
 ```
 
+#Load in saved csv
+
+```{r}
+pbp_complete = read.csv("G:/My Drive/Personal Projects/pbp_complete.csv")
+```
+
+
+#Consolidating Up Surface Types
+I'm noticing a few things with the different types of surfaces here. We can probably combine "a_turf" and "astroturf" alongside the two main grasses under two common astroturf and grass values. Let's also label the blank one as unknown. 
+
+```{r}
+pbp_complete = pbp_complete%>%
+  mutate(surface = ifelse(surface %in% c("a_turf", "astroturf"), "astroturf", surface))%>%
+  mutate(surface = ifelse(str_detect(surface, "^\\s*grass\\s*$"), "grass", surface))%>%
+  mutate(surface = ifelse(str_detect(surface, "^\\s*$"), "Unknown", surface))
+
+table(pbp_complete$surface)
+```
+A brief explanation of surface types remaining:
+
+Astroplay – Synthetic turf brand, like FieldTurf, rubber infill.
+
+Astroturf – Original brand name of synthetic turf.
+
+FieldTurf – Popular modern synthetic turf with rubber/sand infill.
+
+MatrixTurf – Synthetic turf (used in AT&T Stadium).
+
+SportTurf – Another brand of synthetic turf.
+
+We could probably file these all under "Turf"/Synthetic grass
+
+Grass – This should include all standard natural grass.
+
+Dessograss – This is actually a hybrid surface (natural grass reinforced with synthetic fibers), similar to the surface used in some European soccer stadiums. Behaves more like grass than turf.
+
+These two we could probably group under "natural"
+
+Let's just quickly make a feature to bin those two groups
+
+```{r}
+pbp_complete = pbp_complete%>%
+  mutate(surface_type = ifelse(str_detect(surface,"^\\s*(astroplay|astroturf|fieldturf|matrixturf|sportturf)\\s*$"), "Artificial", "Natural"))%>%
+  mutate(surface_type = ifelse(surface == "Unknown", "Unknown", surface_type))
+
+#again quickly run a table here to make sure we didn't mis-capture any types
+
+table(pbp_complete$surface_type)
+```
+
+
 
 Now we don't have to deal with missing data anymore. The next step is creating target variables. We already created on called "result" which in essence was just a make or miss variable based on if a kicker made their try attempt, but now let's make a derived variable based off of that value called probability, which is the probability of that kicker making that attempt.
 
@@ -674,7 +725,7 @@ roof type
 temperature
 wind speed
 and surface type
-let's see what the empircal results of each attempt are:
+let's see what the empirical results of each attempt are:
 
 ```{r}
 pbp_complete_grouped = pbp_complete%>%
@@ -777,6 +828,111 @@ distance_vs_probability_surface = ggplot(pbp_complete_binned,
 
 distance_vs_probability_surface
 ```
+
+#Early Analytical Questions
+
+Here are some of the early questions I'm thinking about at this stage:
+
+- in terms of general trends we can see that kicking accuracy has a negative relationship with distance (this makes sense and is our first check)
+
+-kicking accuracy has strong(ger) negative relationships with distance in: closed, dome, and outdoor stadiums, but more of a logarithmic relationship with distance in open stadiums (research this)
+
+-kicking accuracy on astroplay, astroturf, matrixturf, and sportturf surfaces appears to not have as drastic negative consequences over longer distances as field turf and grass (research what stadiums carry these types and if they're indoors or an even mix of different stadium types)
+
+-dessograss and unknown surface types have almost a completely stable/level relationship with distance (this doesn't appear to be natural or make sense so more research is needed)
+
+
+##Correlation Testing
+
+Correlation between kick distance and make probability:
+```{r}
+distance_probability_cor = cor.test(pbp_complete_binned$kick_distance, pbp_complete_binned$probability_advanced)
+
+distance_probability_cor
+```
+Strong Negative correlation (statistically significant) with distance and p(make).
+
+Correlation between roof type and probability:
+```{r}
+roof_probability_cor = aov(probability_advanced ~ roof,data = pbp_complete_binned)
+
+summary(roof_probability_cor)
+```
+This anova function tells us that roof type as a whole is significant in terms of its impact on p(make)
+
+Going deeper:
+```{r}
+roof_probability_tukey = TukeyHSD(roof_probability_cor)
+
+roof_probability_tukey
+```
+Results explained:
+Kicks in dome stadiums are 0.65% more successful than closed stadiums
+kicks in open stadiums are 1.24% more successful than closed stadiums
+kicks in outdoor stadiums are 0.08% less successful than closed stadiums
+kicks in outdoor stadiums are 1.50% less successful than dome stadiums
+kicks in outdoor stadiums are 2.09% less successful than open stadiums
+
+Conclusion ranking roof types for positive impact on kicking probabilities-
+Dome and Open are the best
+Closed are middle of the pack
+Outdoor is significantly worse
+
+```{r}
+roof_prob_boxplot = ggplot(pbp_complete_binned, 
+                             aes(x = roof, y = probability_advanced))+
+                             geom_boxplot(fill = "skyblue", alpha = 0.7)+
+                             dark_theme_minimal() +
+                             labs(title = "Probability Advanced by Roof Type", 
+                             x = "Roof Type", y = "Probability Advanced")
+
+roof_prob_boxplot
+```
+
+Impact of surface type on kicking probability
+
+I'm going to start with generic trends and then move onto brand types/names
+```{r}
+surface_type_probability_cor = aov(probability_advanced ~ surface_type,data = pbp_complete_binned)
+
+summary(surface_type_probability_cor)
+```
+The type of surface used for fields is significant when it comes to making kicks
+
+Tukey test surface types:
+```{r}
+surface_type_probability_tukey = TukeyHSD(surface_type_probability_cor)
+
+surface_type_probability_tukey
+```
+Biggest significant takeaways-
+
+Natural grass has ~1.85% less p(made) vs Artificial surfaces
+
+Specific Brand/Surface Name tesing:
+```{r}
+surface_probability_cor = aov(probability_advanced ~ surface,data = pbp_complete_binned)
+
+summary(surface_probability_cor)
+```
+Again we find that surface brands as a whole are significant in their relationship to kicking probability
+
+Tukey test surface brands:
+```{r}
+surface_probability_tukey = TukeyHSD(surface_probability_cor)
+
+surface_probability_tukey
+```
+Takeaways-
+
+Natural Grass is significant worse than MatrixTurf, SportTurf, Dessograss, and Astroplay.
+
+Dessograss, MatrixTurf, Astroplay are consistently beating other types.
+
+FieldTurf and Astroturf have below average kicking probabilities.
+
+Unknown brands/surface types are slightly worse than Astroplay and borderline worse than MatrixTurf, but not statistically different from Grass or SportTurf.
+
 
 
 
