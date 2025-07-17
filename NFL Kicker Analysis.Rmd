@@ -24,6 +24,7 @@ library(nflreadr)
 library(nflplotR)
 library(nflfastR)
 library(mice)
+library(lme4)
 ```
 
 ##Load in Data via NFLFastR
@@ -63,6 +64,7 @@ library(nflreadr)
 library(nflplotR)
 library(nflfastR)
 library(mice)
+library(lme4)
 ```
 
 #Load in saved csv
@@ -585,7 +587,8 @@ pbp = pbp%>%
   mutate(surface = as.factor(surface))%>%
   mutate(temp = as.numeric(temp))%>%
   mutate(wind = as.numeric(wind))%>%
-  mutate(game_stadium = as.factor(game_stadium))
+  mutate(game_stadium = as.factor(game_stadium))%>%
+  mutate(kicker_player_name = as.factor(kicker_player_name))
 ```
 
 ##Subsetting data to use MICE
@@ -933,6 +936,93 @@ FieldTurf and Astroturf have below average kicking probabilities.
 
 Unknown brands/surface types are slightly worse than Astroplay and borderline worse than MatrixTurf, but not statistically different from Grass or SportTurf.
 
+##Going back to probability and distance
+
+remember in those charts earlier how I was seeing probability fit more of a logarithmic equation around distance rather than an exponential one?
+
+Let's take a look at edge/fringe cases to see if longer kicks really do fit that pattern or what's really going on there.
+
+```{r}
+long_distance = pbp_complete_grouped%>%
+  filter(kick_distance >= 50)
+```
+
+There are 3556 known attempts from 1999 onwards where a kick has been tried from 50+ yards.
+
+What's the average make probability of those kicks as a whole:
+```{r}
+long_distance_average = mean(long_distance$probability_advanced)
+
+long_distance_average
+```
+We can see that roughly 61.70% of kicks attempted from 50+ yards are made.
+
+Broken down by yardage:
+```{r}
+long_distance_average_by_yard = long_distance%>%
+  group_by(kick_distance)%>%
+  summarise(average_probability = mean(probability_advanced),
+            tries = n())
+
+head(long_distance_average_by_yard, 10)
+```
+
+Plotting this out:
+```{r}
+long_distance_average_by_yard_plot = ggplot(long_distance_average_by_yard, 
+                                            mapping = aes(x = kick_distance, 
+                                                          y = average_probability))+
+                                            geom_point(aes(size = tries))+
+                                            geom_smooth()+
+                                            dark_theme_minimal()+
+                                            labs(title = "Probability of successful NFL field goal tries >= 50 yards", 
+                                            subtitle = "since 1999", 
+                                            x = "Yardage",
+                                            y = "Probability")
+
+long_distance_average_by_yard_plot
+```
+
+This makes much more sense so those fringe cases really aren't amounting to "better" kicking at longer distances....they're just minimal tries which should be fitting more of an exponential function over distance. 
+
+So as a whole p(making a field goal over distance with respect to the number of tries (and not binning field goals) looks like this):
+```{r}
+distance_summary = pbp_complete_grouped%>%
+  group_by(kick_distance)%>%
+  summarise(
+    average_probability = mean(probability_advanced, na.rm = TRUE),
+    tries = n())
+
+
+distance_vs_probability_plot_3 = ggplot(distance_summary, 
+                                      aes(x = kick_distance,
+                                          y = average_probability,
+                                          size = tries))+
+                                          geom_point(alpha = 0.6)+
+                                          geom_smooth(se = FALSE)+
+                                          dark_theme_minimal()+
+                                          labs(title = "NFL Kick Distance vs Make Probability (Advanced)",
+                                          subtitle = "from 1999–2024",
+                                          x = "Distance (yards)",
+                                          y = "Probability of make",
+                                          size = "Attempts")
+
+distance_vs_probability_plot_3
+```
+
+##Mixed Effect Modeling
+
+One thing I want to do in this analysis is break down how how different players, teams, stadiums, roof types, and surfaces impact the expected kicker probabilities and make probability above expected.
+
+Let's start off with a simple me model on kickers as a whole
+
+```{r}
+kicker_mixed_model = glmer(result ~ kick_distance + temp + roof + wind + surface + (1|kicker_player_name), 
+                          data = pbp_complete, 
+                          family = binomial)
+
+summary(kicker_mixed_model)
+```
 
 
 
