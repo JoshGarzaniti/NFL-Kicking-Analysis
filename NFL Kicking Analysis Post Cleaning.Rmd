@@ -1,0 +1,360 @@
+---
+title: "NFL Kicking Analysis (Post-Cleaning)"
+author: "Josh Garzaniti"
+date: "2025-07-18"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Packages I used:
+```{r}
+library(ggplot2)
+library(ggdark)
+library(caret)
+library(tidyverse)
+library(tidyr)
+library(stringr)
+library(xgboost)
+library(randomForest)
+library(ggrepel)
+library(nflreadr)
+library(nflplotR)
+library(nflfastR)
+library(mice)
+library(lme4)
+```
+
+
+## Analysis
+```{r}
+pbp_complete = read.csv("G:/My Drive/Personal Projects/pbp_complete.csv")
+```
+
+
+Now we don't have to deal with missing data anymore. The next step is creating target variables. We already created on called "result" which in essence was just a make or miss variable based on if a kicker made their try attempt, but now let's make a derived variable based off of that value called probability, which is the probability of that kicker making that attempt.
+
+P(x) we can determine a few ways:
+
+we can group all of the attempts by distance, distance and weather, distance, weather turf condition, distance, weather, turf condition, temperature, and wind......or all of those and throw in the stadium. In that sense what we are doing is taking a historical average of how many attempts from that spot on that field in those conditions were made vs missed.....the thing we have to be smart about is not narrowing our sample size down too much to where we condense the number of tries going into the historical average. E.g say a there's only been one attempt at Lambeau field from 65 yards out, and miraculously the kicker made it.....on the next attempt from that location a kicker would be going up against a p(x) of 100% (which in theory says they should make that kick 100% of the time), yet we all know that's not factual in reality.
+
+if we group up by:
+distance
+roof type
+temperature
+wind speed
+and surface type
+let's see what the empirical results of each attempt are:
+
+```{r}
+pbp_complete_grouped = pbp_complete%>%
+  group_by(kick_distance, roof, temp, wind, surface)%>%
+  mutate(probability_advanced = mean(result, na.rm = TRUE))%>%
+  ungroup()
+
+pbp_complete_grouped
+```
+
+A good baseline for this is to just check by distances (our probability should be dropping of drastically by distance so let's see what that distribution looks like)
+
+```{r}
+distance_vs_probability_plot = ggplot(pbp_complete_grouped, 
+                                      mapping = aes(x = kick_distance,
+                                                    y = probability_advanced))+
+                                      geom_point()+
+                                      geom_smooth()+
+                                      dark_theme_minimal()+
+                                      labs(title = "NFL Kick Distance vs Make Probability (advanced)", subtitle = "from 1999-2024", x = "Distance", y = "Probability")
+
+distance_vs_probability_plot
+```
+What about binning vars like temp and wind?
+
+```{r}
+pbp_complete_binned = pbp_complete%>%
+  mutate(
+    temp_bin = cut(temp, breaks = c(-Inf, 30, 50, 70, 90, Inf), labels = c("cold", "chilly", "mild", "warm", "hot")),
+    wind_bin = cut(wind, breaks = c(-Inf, 5, 10, 20, Inf), labels = c("calm", "breezy", "windy", "gusty")))%>%
+  group_by(kick_distance, roof, temp_bin, wind_bin, surface)%>%
+  mutate(
+    group_n = n(),
+    probability_advanced = ifelse(group_n >= 5, mean(result, na.rm = TRUE), NA_real_))%>%
+  ungroup()%>%
+  mutate(
+    probability_advanced = ifelse(is.na(probability_advanced), mean(result, na.rm = TRUE), probability_advanced))
+```
+
+Visualizing this
+
+```{r}
+distance_vs_probability_plot_2 = ggplot(pbp_complete_binned, 
+  aes(x = kick_distance, y = probability_advanced)) +
+  geom_point(aes(size = group_n), alpha = 0.6) +
+  geom_smooth() +
+  geom_hline(
+    yintercept = mean(pbp_complete$result, na.rm = TRUE), 
+    linetype = "dashed", 
+    color = "red", 
+    alpha = 0.6)+
+  dark_theme_minimal()+
+  labs(
+    title = "NFL Kick Distance vs Make Probability (advanced)", 
+    subtitle = "from 1999-2024", 
+    x = "Distance", 
+    y = "Probability")
+
+distance_vs_probability_plot_2
+```
+
+Facet Wrap by Roof type
+
+```{r}
+distance_vs_probability_roof = ggplot(pbp_complete_binned, 
+  aes(x = kick_distance, y = probability_advanced))+
+  geom_point(aes(size = group_n), alpha = 0.6)+
+  geom_smooth(se = FALSE)+
+  geom_hline(
+    yintercept = mean(pbp_complete$result, na.rm = TRUE), 
+    linetype = "dashed", color = "red", alpha = 0.6)+
+  facet_wrap(~ roof)+
+  dark_theme_minimal()+
+  labs(
+    title = "NFL Kick Distance vs Make Probability by Roof Type",
+    subtitle = "From 1999–2024",
+    x = "Distance",
+    y = "Make Probability")
+
+distance_vs_probability_roof
+```
+
+What about Surface type is there a relationship between distance and surface type when it comes to the probability of making kicks?
+
+```{r}
+distance_vs_probability_surface = ggplot(pbp_complete_binned, 
+  aes(x = kick_distance, y = probability_advanced))+
+  geom_point(aes(size = group_n), alpha = 0.6)+
+  geom_smooth(se = FALSE) +
+  geom_hline(
+    yintercept = mean(pbp_complete$result, na.rm = TRUE), 
+    linetype = "dashed", color = "red", alpha = 0.6)+
+  facet_wrap(~ surface) +
+  dark_theme_minimal() +
+  labs(
+    title = "NFL Kick Distance vs Make Probability by Field Surface",
+    subtitle = "From 1999–2024",
+    x = "Distance",
+    y = "Make Probability")
+
+distance_vs_probability_surface
+```
+
+#Early Analytical Questions
+
+Here are some of the early questions I'm thinking about at this stage:
+
+- in terms of general trends we can see that kicking accuracy has a negative relationship with distance (this makes sense and is our first check)
+
+-kicking accuracy has strong(ger) negative relationships with distance in: closed, dome, and outdoor stadiums, but more of a logarithmic relationship with distance in open stadiums (research this)
+
+-kicking accuracy on astroplay, astroturf, matrixturf, and sportturf surfaces appears to not have as drastic negative consequences over longer distances as field turf and grass (research what stadiums carry these types and if they're indoors or an even mix of different stadium types)
+
+-dessograss and unknown surface types have almost a completely stable/level relationship with distance (this doesn't appear to be natural or make sense so more research is needed)
+
+
+##Correlation Testing
+
+Correlation between kick distance and make probability:
+```{r}
+distance_probability_cor = cor.test(pbp_complete_binned$kick_distance, pbp_complete_binned$probability_advanced)
+
+distance_probability_cor
+```
+Strong Negative correlation (statistically significant) with distance and p(make).
+
+Correlation between roof type and probability:
+```{r}
+roof_probability_cor = aov(probability_advanced ~ roof,data = pbp_complete_binned)
+
+summary(roof_probability_cor)
+```
+This anova function tells us that roof type as a whole is significant in terms of its impact on p(make)
+
+Going deeper:
+```{r}
+roof_probability_tukey = TukeyHSD(roof_probability_cor)
+
+roof_probability_tukey
+```
+Results explained:
+Kicks in dome stadiums are 0.65% more successful than closed stadiums
+kicks in open stadiums are 1.24% more successful than closed stadiums
+kicks in outdoor stadiums are 0.08% less successful than closed stadiums
+kicks in outdoor stadiums are 1.50% less successful than dome stadiums
+kicks in outdoor stadiums are 2.09% less successful than open stadiums
+
+Conclusion ranking roof types for positive impact on kicking probabilities-
+Dome and Open are the best
+Closed are middle of the pack
+Outdoor is significantly worse
+
+```{r}
+roof_prob_boxplot = ggplot(pbp_complete_binned, 
+                             aes(x = roof, y = probability_advanced))+
+                             geom_boxplot(fill = "skyblue", alpha = 0.7)+
+                             dark_theme_minimal() +
+                             labs(title = "Probability Advanced by Roof Type", 
+                             x = "Roof Type", y = "Probability Advanced")
+
+roof_prob_boxplot
+```
+
+Impact of surface type on kicking probability
+
+I'm going to start with generic trends and then move onto brand types/names
+```{r}
+surface_type_probability_cor = aov(probability_advanced ~ surface_type,data = pbp_complete_binned)
+
+summary(surface_type_probability_cor)
+```
+The type of surface used for fields is significant when it comes to making kicks
+
+Tukey test surface types:
+```{r}
+surface_type_probability_tukey = TukeyHSD(surface_type_probability_cor)
+
+surface_type_probability_tukey
+```
+Biggest significant takeaways-
+
+Natural grass has ~1.85% less p(made) vs Artificial surfaces
+
+Specific Brand/Surface Name tesing:
+```{r}
+surface_probability_cor = aov(probability_advanced ~ surface,data = pbp_complete_binned)
+
+summary(surface_probability_cor)
+```
+Again we find that surface brands as a whole are significant in their relationship to kicking probability
+
+Tukey test surface brands:
+```{r}
+surface_probability_tukey = TukeyHSD(surface_probability_cor)
+
+surface_probability_tukey
+```
+Takeaways-
+
+Natural Grass is significant worse than MatrixTurf, SportTurf, Dessograss, and Astroplay.
+
+Dessograss, MatrixTurf, Astroplay are consistently beating other types.
+
+FieldTurf and Astroturf have below average kicking probabilities.
+
+Unknown brands/surface types are slightly worse than Astroplay and borderline worse than MatrixTurf, but not statistically different from Grass or SportTurf.
+
+##Going back to probability and distance
+
+remember in those charts earlier how I was seeing probability fit more of a logarithmic equation around distance rather than an exponential one?
+
+Let's take a look at edge/fringe cases to see if longer kicks really do fit that pattern or what's really going on there.
+
+```{r}
+long_distance = pbp_complete_grouped%>%
+  filter(kick_distance >= 50)
+```
+
+There are 3556 known attempts from 1999 onwards where a kick has been tried from 50+ yards.
+
+What's the average make probability of those kicks as a whole:
+```{r}
+long_distance_average = mean(long_distance$probability_advanced)
+
+long_distance_average
+```
+We can see that roughly 61.70% of kicks attempted from 50+ yards are made.
+
+Broken down by yardage:
+```{r}
+long_distance_average_by_yard = long_distance%>%
+  group_by(kick_distance)%>%
+  summarise(average_probability = mean(probability_advanced),
+            tries = n())
+
+head(long_distance_average_by_yard, 10)
+```
+
+Plotting this out:
+```{r}
+long_distance_average_by_yard_plot = ggplot(long_distance_average_by_yard, 
+                                            mapping = aes(x = kick_distance, 
+                                                          y = average_probability))+
+                                            geom_point(aes(size = tries))+
+                                            geom_smooth()+
+                                            dark_theme_minimal()+
+                                            labs(title = "Probability of successful NFL field goal tries >= 50 yards", 
+                                            subtitle = "since 1999", 
+                                            x = "Yardage",
+                                            y = "Probability")
+
+long_distance_average_by_yard_plot
+```
+
+This makes much more sense so those fringe cases really aren't amounting to "better" kicking at longer distances....they're just minimal tries which should be fitting more of an exponential function over distance. 
+
+So as a whole p(making a field goal over distance with respect to the number of tries (and not binning field goals) looks like this):
+```{r}
+distance_summary = pbp_complete_grouped%>%
+  group_by(kick_distance)%>%
+  summarise(
+    average_probability = mean(probability_advanced, na.rm = TRUE),
+    tries = n())
+
+
+distance_vs_probability_plot_3 = ggplot(distance_summary, 
+                                      aes(x = kick_distance,
+                                          y = average_probability,
+                                          size = tries))+
+                                          geom_point(alpha = 0.6)+
+                                          geom_smooth(se = FALSE)+
+                                          dark_theme_minimal()+
+                                          labs(title = "NFL Kick Distance vs Make Probability (Advanced)",
+                                          subtitle = "from 1999–2024",
+                                          x = "Distance (yards)",
+                                          y = "Probability of make",
+                                          size = "Attempts")
+
+distance_vs_probability_plot_3
+```
+
+##Mixed Effect Modeling
+
+One thing I want to do in this analysis is break down how how different players, teams, stadiums, roof types, and surfaces impact the expected kicker probabilities and make probability above expected.
+
+Let's start off with a simple me model on kickers as a whole
+
+```{r}
+kicker_mixed_model = glmer(result ~ kick_distance + temp + roof + wind + surface + (1|kicker_player_name), 
+                          data = pbp_complete, 
+                          family = binomial)
+
+summary(kicker_mixed_model)
+```
+
+Plotting
+```{r}
+ranef(model_kicker)$kicker %>%
+  as.data.frame() %>%
+  tibble::rownames_to_column("kicker") %>%
+  ggplot(aes(x = reorder(kicker, `(Intercept)`), y = `(Intercept)`)) +
+  geom_col() +
+  coord_flip() +
+  dark_theme_minimal() +
+  labs(title = "Kicker-Specific Random Effects", y = "Random Intercept", x = "Kicker")
+
+```
+
+
+
+

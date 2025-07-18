@@ -1,0 +1,693 @@
+---
+title: "NFL Kicker Analysis"
+author: "Josh Garzaniti"
+date: "2025-06-21"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load in packages
+```{r}
+library(ggplot2)
+library(ggdark)
+library(caret)
+library(tidyverse)
+library(tidyr)
+library(stringr)
+library(xgboost)
+library(randomForest)
+library(ggrepel)
+library(nflreadr)
+library(nflplotR)
+library(nflfastR)
+library(mice)
+library(lme4)
+```
+
+##Load in Data via NFLFastR
+```{r}
+pbp = nflfastR::load_pbp(2000:2024)
+```
+##Cleaning Steps
+Ok now that we've loaded in our data, the first and most obvious thing we want to do is filter it down to only kicking play (field goal attempts and extra point attempts/PAT's)
+```{r}
+pbp = pbp%>%
+  filter(play_type %in% c("extra_point", "field_goal"))
+
+head(pbp, 10)
+```
+
+Since 2000, there have been 56,676 observations of plays in the nfl which either fit the description of a field goal or extra point attempt. Let's save this real quick so we don't have to load in all of the pbp data again.
+
+##Save Kicking data subset.
+```{r}
+write.csv(pbp, "G:/My Drive/Personal Projects/NFL Kicking Analysis.csv", row.names = FALSE)
+```
+
+
+##Continue Data Cleaning and feature selection
+Let's continue cleaning by scrubbing some of the existing features we know we probably won't use such as play id, game id etc...
+
+```{r}
+pbp = pbp%>%
+  select(-game_id,
+         -play_id,
+         -old_game_id,
+         -down,
+         -time,
+         -yards_gained,
+         -shotgun,
+         -no_huddle,
+         -qb_kneel,
+         -qb_dropback,
+         -qb_spike,
+         -qb_scramble,
+         -pass_length,
+         -pass_location,
+         -air_yards,
+         -yards_after_catch,
+         -run_location,
+         -run_gap,
+         -two_point_conv_result,
+         -timeout,
+         -timeout_team,
+         -td_team,
+         -td_player_name,
+         -td_player_id,
+         -posteam_timeouts_remaining,
+         -defteam_timeouts_remaining,
+         -posteam_score,
+         -defteam_score,
+         -score_differential,
+         -posteam_score_post,
+         -defteam_score_post,
+         -score_differential_post,
+         -two_point_conversion_prob,
+         -total_home_rush_epa,
+         -total_away_rush_epa,
+         -total_home_pass_epa,
+         -total_away_pass_epa,
+         -air_epa,
+         -yac_epa,
+         -comp_air_epa,
+         -comp_yac_epa,
+         -total_home_comp_air_epa,
+         -total_away_comp_air_epa,
+         -total_home_comp_yac_epa,
+         -total_away_comp_yac_epa,
+         -total_home_raw_air_epa,
+         -total_away_raw_air_epa,
+         -total_home_raw_yac_epa,
+         -total_away_raw_yac_epa,
+         -vegas_wpa,
+         -vegas_home_wpa,
+         -vegas_wp,
+         -vegas_home_wp,
+         -home_wp_post,
+         -away_wp_post,
+         -total_home_rush_wpa,
+         -total_away_rush_wpa,
+         -total_home_pass_wpa,
+         -total_away_pass_wpa,
+         -air_wpa,
+         -yac_wpa,
+         -comp_air_wpa,
+         -comp_yac_wpa,
+         -total_home_comp_air_wpa,
+         -total_away_comp_air_wpa,
+         -total_home_comp_yac_wpa,
+         -total_away_comp_yac_wpa,
+         -total_home_raw_air_wpa,
+         -total_away_raw_air_wpa,
+         -total_home_raw_yac_wpa,
+         -total_away_raw_yac_wpa,
+         -punt_blocked,
+         -first_down_rush,
+         -first_down_pass,
+         -third_down_converted,
+         -first_down_penalty,
+         -third_down_failed,
+         -fourth_down_converted,
+         -fourth_down_failed,
+         -incomplete_pass,
+         -touchback,
+         -interception,
+         -punt_inside_twenty,
+         -punt_in_endzone,
+         -punt_out_of_bounds,
+         -punt_downed,
+         -punt_fair_catch,
+         -kickoff_inside_twenty,
+         -kickoff_in_endzone,
+         -kickoff_out_of_bounds,
+         -kickoff_downed,
+         -kickoff_fair_catch,
+         -fumble_forced,
+         -fumble_not_forced,
+         -fumble_out_of_bounds,
+         -solo_tackle,
+         -safety,
+         -tackled_for_loss,
+         -fumble_lost,
+         -own_kickoff_recovery,
+         -own_kickoff_recovery_td,
+         -qb_hit,
+         -rush_attempt,
+         -pass_attempt,
+         -sack,
+         -touchdown,
+         -pass_touchdown,
+         -rush_touchdown,
+         -return_touchdown,
+         -two_point_attempt,
+         -kickoff_attempt,
+         -punt_attempt,
+         -fumble,
+         -complete_pass,
+         -assist_tackle,
+         -lateral_reception,
+         -lateral_rush,
+         -lateral_return,
+         -lateral_recovery,
+         -passer_player_id,
+         -passer_player_name,
+         -passing_yards,
+         -receiver_player_id,
+         -receiver_player_name,
+         -receiving_yards,
+         -rusher_player_id,
+         -rusher_player_name,
+         -rushing_yards,
+         -lateral_receiver_player_id,
+         -lateral_receiver_player_name,
+         -lateral_receiving_yards,
+         -lateral_rusher_player_id,
+         -lateral_rusher_player_name,
+         -lateral_rushing_yards,
+         -lateral_sack_player_id,
+         -lateral_sack_player_name,
+         -interception_player_id,
+         -interception_player_name,
+         -lateral_interception_player_id,
+         -lateral_interception_player_name,
+         -punt_returner_player_id,
+         -punt_returner_player_name,
+         -lateral_punt_returner_player_id,
+         -lateral_punt_returner_player_name,
+         -kickoff_returner_player_name,
+         -kickoff_returner_player_id,
+         -lateral_kickoff_returner_player_id,
+         -lateral_kickoff_returner_player_name,
+         -punter_player_id,
+         -punter_player_name,
+         -own_kickoff_recovery_player_id,
+         -own_kickoff_recovery_player_name,
+         -blocked_player_id,
+         -blocked_player_name,
+         -tackle_for_loss_1_player_id,
+         -tackle_for_loss_1_player_name,
+         -tackle_for_loss_2_player_id,
+         -tackle_for_loss_2_player_name,
+         -qb_hit_1_player_id,
+         -qb_hit_1_player_name,
+         -qb_hit_2_player_id,
+         -qb_hit_2_player_name,
+         -forced_fumble_player_1_team,
+         -forced_fumble_player_1_player_id,
+         -forced_fumble_player_1_player_name,
+         -forced_fumble_player_2_team,
+         -forced_fumble_player_2_player_id,
+         -forced_fumble_player_2_player_name,
+         -solo_tackle_1_team,
+         -solo_tackle_2_team,
+         -solo_tackle_1_player_id,
+         -solo_tackle_2_player_id,
+         -solo_tackle_1_player_name,
+         -solo_tackle_2_player_name,
+         -assist_tackle_1_team,
+         -assist_tackle_1_player_id,
+         -assist_tackle_1_player_name,
+         -assist_tackle_2_team,
+         -assist_tackle_2_player_id,
+         -assist_tackle_2_player_name,
+         -assist_tackle_3_team,
+         -assist_tackle_3_player_id,
+         -assist_tackle_3_player_name,
+         -assist_tackle_4_team,
+         -assist_tackle_4_player_id,
+         -assist_tackle_4_player_name,
+         -tackle_with_assist,
+         -tackle_with_assist_1_player_id,
+         -tackle_for_loss_1_player_name,
+         -tackle_for_loss_2_player_id,
+         -tackle_for_loss_2_player_name,
+         -tackle_with_assist_1_team,
+         -tackle_with_assist_2_team,
+         -pass_defense_1_player_id,
+         -pass_defense_1_player_name,
+         -pass_defense_2_player_id,
+         -pass_defense_2_player_name,
+         -fumbled_1_team,
+         -fumbled_1_player_id,
+         -fumbled_1_player_name,
+         -fumbled_2_team,
+         -fumbled_2_player_id,
+         -fumbled_2_player_name,
+         -fumble_recovery_1_team,
+         -fumble_recovery_1_player_id,
+         -fumble_recovery_1_player_name,
+         -fumble_recovery_2_team,
+         -fumble_recovery_2_player_id,
+         -fumble_recovery_2_player_name,
+         -sack_player_id,
+         -sack_player_name,
+         -half_sack_1_player_id,
+         -half_sack_1_player_name,
+         -half_sack_2_player_id,
+         -half_sack_2_player_name,
+         -return_team,
+         -return_yards,
+         -penalty_team,
+         -penalty_player_id,
+         -penalty_player_name,
+         -penalty_yards,
+         -replay_or_challenge,
+         -replay_or_challenge_result,
+         -penalty_type,
+         -defensive_two_point_attempt,
+         -defensive_two_point_conv,
+         -defensive_extra_point_attempt,
+         -defensive_extra_point_conv,
+         -safety_player_id,
+         -safety_player_name,
+         -cp,
+         -cpoe,
+         -series_success,
+         -series_result,
+         -order_sequence,
+         -start_time,
+         -time_of_day,
+         -nfl_api_id,
+         -play_deleted,
+         -play_type_nfl,
+         -special_teams_play,
+         -st_play_type,
+         -end_clock_time,
+         -end_yard_line,
+         -fixed_drive,
+         -fixed_drive_result,
+         -drive_real_start_time,
+         -drive_play_count,
+         -drive_time_of_possession,
+         -drive_time_of_possession,
+         -drive_inside20,
+         -drive_ended_with_score,
+         -drive_quarter_start,
+         -drive_quarter_end,
+         -drive_yards_penalized,
+         -drive_start_transition,
+         -drive_end_transition,
+         -drive_game_clock_start,
+         -drive_game_clock_end,
+         -drive_start_yard_line,
+         -drive_end_yard_line,
+         -drive_play_id_started,
+         -drive_play_id_ended,
+         -away_score,
+         -home_score,
+         -location,
+         -result,
+         -total,
+         -spread_line,
+         -total_line,
+         -stadium_id,
+         -aborted_play,
+         -success,
+         -passer,
+         -passer_jersey_number,
+         -rusher,
+         -rusher_jersey_number,
+         -receiver,
+         -receiver_jersey_number,
+         -pass,
+         -rush,
+         -first_down,
+         -special,
+         -play,
+         -passer_id,
+         -rusher_id,
+         -receiver_id,
+         -name,
+         -jersey_number,
+         -id,
+         -fantasy_player_name,
+         -fantasy_player_id,
+         -fantasy,
+         -fantasy_id,
+         -out_of_bounds,
+         -home_opening_kickoff,
+         -qb_epa,
+         -xyac_mean_yardage,
+         -xyac_epa,
+         -xyac_median_yardage,
+         -xyac_success,
+         -xyac_fd,
+         -xpass,
+         -pass_oe,
+         -quarter_end)
+
+pbp
+```
+
+```{r}
+##Mutate Game half into either 1 or 2 
+pbp = pbp%>%
+  mutate(game_half = ifelse(game_half == "Half1", 1, 2))
+
+pbp
+```
+
+
+Create a unilateral "result" variable. Right now there are two vars (field goal result and xp result.) What I'm doing here is counting blocked and aborted values from both field goals and extra points as failed attempts or 0's, while successful trys are 1's. Alternatively if you wanted to just purely focus on made and missed kicks we could drop all values that are blocked from field_goal_result and all values that are aborted or blocked from extra_point_result before mutating to create a final result variable.
+
+```{r}
+pbp = pbp %>%
+  mutate(
+    result = case_when(
+      field_goal_result == "made" ~ 1,
+      field_goal_result %in% c("missed", "blocked") ~ 0,
+      extra_point_result == "good" ~ 1,
+      extra_point_result %in% c("failed", "blocked", "aborted") ~ 0))
+
+pbp
+```
+
+Look at the variables we have remaining
+
+```{r}
+str(pbp)
+```
+We have 73 features left in our data. We can still clean this up because there's a fear vars that are either duplicates or we can proxy with others.I'm dropping the results because we now have the final mutated column. We don't need the play description or yard line (it's a combination of field side and actual yard line). Play type we can proxy through the field goal/xp flag columns; we don't need tackle/fumble variables either. The first stadium var in the data has too many NA's so we'll use the latter. Same with weather. and play clock since they're missing from 1999 and 2000 entirely. I also don't think home/ away coaching will help our analysis just because there might be too many factor levels with the amount of different coaches. 
+
+```{r}
+pbp = pbp%>%
+  select(-yrdln, 
+         -desc,
+         -extra_point_result,
+         -field_goal_result,
+         -play_type,
+         -tackle_with_assist_1_player_name,
+         -tackle_with_assist_2_player_id,
+         -tackle_with_assist_2_player_name,
+         -fumble_recovery_1_yards,
+         -fumble_recovery_2_yards,
+         -stadium,
+         -weather,
+         -play_clock,
+         -home_coach,
+         -away_coach,
+         -sp)
+
+pbp
+```
+
+Now here's another big question.....do we keep all of the epa and wpa data in? 
+I also want to look at the NA's we have remaining in our data
+
+```{r}
+str(pbp)
+
+colSums(is.na(pbp))
+```
+
+##Dealing with NA's and Deciding if we want to keep epa/wpa data baked in
+Going through these NA's, the first thing that is apparent to me is that all of the temperature and wind data is missing from indoor stadiums (this is an easy fix...we can look up what the average is across the league for indoor football stadiums for both or use mean's to impute). Drive, Yards Net and First Downs look like they're potentially off of turnovers (so the kicking team got the ball to start the possession off of a turnover and for some reason those vars weren't measures). We could either drop these vars or probably best impute them using MICE (the only other way would be to go back to the very original data set and fix the drive # in the original data). Kicker player name and ID we are going to at least need the name of those 31 kickers so I might look up those games manually and impute them myself.
+
+Starting with the Kickers
+```{r}
+missing_kickers = pbp%>%
+  filter(is.na(kicker_player_name ))
+
+missing_kickers
+```
+
+Create a table of fixed Kicker Names
+```{r}
+fixed_names = data.frame(
+  game_date = as.Date(c("2014-11-16", "2012-10-21", "2012-09-27", "2010-12-12", "2010-11-21
+", "2010-10-31", "2009-10-18", "2009-09-27", "2008-12-28", "2008-11-16", "2008-10-26", "2008-09-21", "2007-12-16", "2007-12-09", "2007-11-25", "2007-09-09", "2007-02-04", "2006-12-24", "2006-12-10", "2006-12-11", "2005-12-24", "2005-12-18", "2004-12-19", "2004-11-21", "2003-12-07", "2003-09-21", "2002-12-15", "2002-11-24", "2002-11-11", "2002-10-20", "2002-09-15"
+)),
+  kicker_player_name = c("M.Crosby", "P.Dawson", "P.Dawson", "G.Gano", "G.Hartley", "K.Brown", "J.Scobee", "S.Graham", "D.Carpenter", "L.Tynes", "N.Rackers", "K.Brown", "J.Scobee", "J.Brown", "N.Kaeding", "L.Tynes", "A.Vinatieri", "S.Graham", "J.Nedney", "J.Wilkins", "J.Elam", "N.Rackers", "J.Hanson", "M.Stover", "T.Peterson", "A.Elling", "P.Dawson", "J.Tuthill", "S.Janikowski", "B.Cundiff", "H.Epstein")
+)
+```
+
+Join that table with the pbp data to replace the missing kickers
+```{r}
+pbp = pbp%>%
+  mutate(game_date = as.Date(game_date))%>%
+  left_join(fixed_names, by = "game_date", suffix = c("", "_fix"))%>%
+  mutate(
+    kicker_player_name = if_else(is.na(kicker_player_name), kicker_player_name_fix, kicker_player_name))%>%
+  select(-kicker_player_name_fix)
+
+pbp
+
+sum(is.na(pbp$kicker_player_name))
+```
+
+Check Out where else we have NA's 
+```{r}
+colSums(is.na(pbp))
+```
+
+Fixing the kicker ID's (or at least attempting to....some encoding issue is making the names not match in our lookup table vs the db)
+```{r}
+
+kicker_lookup = tibble(
+  kicker_player_name = c(
+    "M.Crosby", "P.Dawson", "G.Gano", "G.Hartley", "K.Brown", "J.Scobee", 
+    "S.Graham", "D.Carpenter", "L.Tynes", "N.Rackers", "J.Brown", "N.Kaeding", 
+    "A.Vinatieri", "J.Nedney", "J.Wilkins", "J.Elam", "J.Hanson", "M.Stover", 
+    "T.Peterson", "A.Elling", "J.Tuthill", "S.Janikowski", "B.Cundiff", "H.Epstein"),
+  kicker_player_id = c(
+    "00-0025580", "00-0004091", "00-0026858", "00-0025824", "00-0001980", "00-0022874", 
+    "00-0019536", "00-0026003", "00-0019778", "00-0019676", "00-0021940", "00-0022737", 
+    "00-0016919", "00-0011970", "00-0017693", "00-0004811", "00-0006800", "00-0015784", 
+    "00-0012875", "00-0021080", "00-0019542", "00-0019646", "00-0020972", "00-0021347"))
+
+pbp = pbp%>%
+   mutate(kicker_player_name = trimws(kicker_player_name))%>%
+  mutate(kicker_player_name = str_replace_all(kicker_player_name, "[^[:alnum:].]", ""))%>%
+  left_join(kicker_lookup, by = "kicker_player_name", suffix = c("", ".lookup"))%>%
+  mutate(kicker_player_id = if_else(is.na(kicker_player_id), kicker_player_id.lookup, kicker_player_id))%>%
+  select(-kicker_player_id.lookup)
+
+sum(is.na(pbp$kicker_player_id))
+```
+
+See what other NA's we need to clean up If you remember:
+drive
+yrdsnet
+Drive_first_down
+temp
+wind
+
+#Start with imputing stadium values for temp and wind
+here are the sources I used to back up my imputing
+https://www.reddit.com/r/nfl/comments/rxhiwg/the_nfl_should_have_indoor_teams_keep_their
+
+https://www.reddit.com/r/raiders/comments/18f6dxo/dumb_questionheaded_to_the_stadium_for_the_first/
+
+https://www.allegiantair.com/faqs
+
+https://www.tripadvisor.com/FAQ_Answers-g43323-d10639029-t4977007-What_s_the_temperature_inside_the_stadium.html
+
+https://paisano-online.com/29258/sports/dome-field-advantage/
+
+
+I'm mutating temperature for indoor stadiums to be ~70 degrees and effective wind speed to be 0 mph (since HVAC currents are incredible minimal). Note that there are some stadiums that fluctuate from 70-72 degrees and the vikings are apparently know to start colder in the season (high 80's), but for this analysis let's just use a league constant of 70.
+```{r}
+pbp = pbp%>%
+  mutate(temp = ifelse(is.na(temp), 70, temp))%>%
+  mutate(wind = ifelse(is.na(wind), 0, wind))
+```
+
+#Now to fix drive, ydsnet and drive_first_downs
+
+I'm using the MICE package here to impute values for each of these variables. What MICE does is that it creates multiple imputations for each missing value via Gibbs sampling, guesses the value based on all of the other variables in the data, and goes through x iterations of said process until it finds a good enough synthetic value to replace that missing one with. 
+
+Now MICE historically handles categorical and numerical data well so I want to look through the structure of our data to make sure we are good to use this function.
+
+https://www.geeksforgeeks.org/r-language/mice-package-in-r/
+
+Let's start by updating some data types
+
+```{r}
+pbp = pbp%>%
+  mutate(home_team = as.factor(home_team))%>%
+  mutate(away_team = as.factor(away_team))%>%
+  mutate(regular_season = ifelse(season_type == "REG", 1, 0))%>%
+  mutate(week = as.numeric(week))%>%
+  mutate(posteam = as.factor(posteam))%>%
+  mutate(posteam_type = as.factor(posteam_type))%>%
+  mutate(defteam = as.factor(defteam))%>%
+  mutate(side_of_field = as.factor(side_of_field))%>%
+  mutate(yardline_100 = as.numeric(yardline_100))%>%
+  mutate(quarter_seconds_remaining = as.numeric(quarter_seconds_remaining))%>%
+  mutate(half_seconds_remaining = as.numeric(half_seconds_remaining))%>%
+  mutate(game_seconds_remaining = as.numeric(game_seconds_remaining))%>%
+  mutate(game_half = as.factor(game_half))%>%
+  mutate(drive = as.numeric(drive))%>%
+  mutate(qtr = as.factor(qtr))%>%
+  mutate(goal_to_go = as.numeric(goal_to_go))%>%
+  mutate(ydstogo = as.numeric(ydstogo))%>%
+  mutate(ydsnet = as.numeric(ydsnet))%>%
+  mutate(kick_distance = as.numeric(kick_distance))%>%
+  mutate(home_timeouts_remaining = as.numeric(home_timeouts_remaining))%>%
+  mutate(away_timeouts_remaining = as.numeric(away_timeouts_remaining))%>%
+  mutate(total_home_score = as.numeric(total_home_score))%>%
+  mutate(total_away_score = as.numeric(total_away_score))%>%
+  mutate(penalty = as.numeric(penalty))%>%
+  mutate(extra_point_attempt = as.numeric(extra_point_attempt))%>%
+  mutate(field_goal_attempt = as.numeric(field_goal_attempt))%>%
+  mutate(season = as.numeric(season))%>%
+  mutate(series = as.numeric(series))%>%
+  mutate(drive_first_downs = as.numeric(drive_first_downs))%>%
+  mutate(div_game = as.numeric(div_game))%>%
+  mutate(roof = as.factor(roof))%>%
+  mutate(surface = as.factor(surface))%>%
+  mutate(temp = as.numeric(temp))%>%
+  mutate(wind = as.numeric(wind))%>%
+  mutate(game_stadium = as.factor(game_stadium))%>%
+  mutate(kicker_player_name = as.factor(kicker_player_name))
+```
+
+##Subsetting data to use MICE
+variables we don't want in the subset:
+game_date, game_stadium	Redundant with season- too many levels
+kicker_player_name, kicker_player_id-	High cardinality, not predictive of drive
+penalty, extra_point_attempt, field_goal_attempt-	These often occur after or during a scoring play, may introduce leakage into drive outcome
+result-	Not helpful unless you're imputing game-level outcomes
+series, yardline_100, posteam, defteam-	May introduce bias or data leakage if you're imputing drive (since drive relates to field position and team)
+
+Let's use the rest
+
+```{r}
+pbp_mice = pbp%>%
+  select(
+    drive, drive_first_downs, ydsnet,
+    quarter_seconds_remaining, half_seconds_remaining, game_seconds_remaining,
+    game_half, qtr, goal_to_go, ydstogo,
+    total_home_score, total_away_score,
+    home_timeouts_remaining, away_timeouts_remaining,
+    kick_distance,
+    ep, epa, total_home_epa, total_away_epa,
+    wp, def_wp, home_wp, away_wp, wpa,
+    no_score_prob, opp_fg_prob, opp_safety_prob, opp_td_prob,
+    fg_prob, safety_prob, td_prob, extra_point_prob,
+    roof, surface, temp, wind,
+    season, posteam_type)
+
+pbp_mice
+```
+
+Impute using default predictive mean matching settings:
+
+```{r}
+imputed_pbp = mice(pbp_mice, m = 5, maxit = 10, method = "pmm", seed = 303)
+```
+
+Visualizing distributions of imputed and observed values 
+```{r}
+imputed_drive_plot = densityplot(imputed_pbp, ~ drive)
+
+imputed_drive_plot
+
+imputed_ydsnet_plot = densityplot(imputed_pbp, ~ ydsnet)
+
+imputed_ydsnet_plot
+
+imputed_drive_first_downs_plot = densityplot(imputed_pbp, ~ drive_first_downs)
+
+imputed_drive_first_downs_plot
+```
+
+Get imputed data back out
+
+```{r}
+pbp_imputed = complete(imputed_pbp, 3)
+```
+
+Join filled variables back up with pbp dataframe
+
+```{r}
+pbp_complete = pbp%>%
+  select(-drive, -ydsnet, -drive_first_downs)
+
+pbp_complete[, c("drive", "ydsnet", "drive_first_downs")] = 
+  pbp_imputed[, c("drive", "ydsnet", "drive_first_downs")]
+
+```
+
+Let's save our work so far
+
+```{r}
+write.csv(pbp_complete, "G:/My Drive/Personal Projects/pbp_complete.csv", row.names = FALSE)
+```
+
+#Consolidating Up Surface Types
+I'm noticing a few things with the different types of surfaces here. We can probably combine "a_turf" and "astroturf" alongside the two main grasses under two common astroturf and grass values. Let's also label the blank one as unknown. 
+
+```{r}
+pbp_complete = pbp_complete%>%
+  mutate(surface = ifelse(surface %in% c("a_turf", "astroturf"), "astroturf", surface))%>%
+  mutate(surface = ifelse(str_detect(surface, "^\\s*grass\\s*$"), "grass", surface))%>%
+  mutate(surface = ifelse(str_detect(surface, "^\\s*$"), "Unknown", surface))
+
+table(pbp_complete$surface)
+```
+A brief explanation of surface types remaining:
+
+Astroplay – Synthetic turf brand, like FieldTurf, rubber infill.
+
+Astroturf – Original brand name of synthetic turf.
+
+FieldTurf – Popular modern synthetic turf with rubber/sand infill.
+
+MatrixTurf – Synthetic turf (used in AT&T Stadium).
+
+SportTurf – Another brand of synthetic turf.
+
+We could probably file these all under "Turf"/Synthetic grass
+
+Grass – This should include all standard natural grass.
+
+Dessograss – This is actually a hybrid surface (natural grass reinforced with synthetic fibers), similar to the surface used in some European soccer stadiums. Behaves more like grass than turf.
+
+These two we could probably group under "natural"
+
+Let's just quickly make a feature to bin those two groups
+
+```{r}
+pbp_complete = pbp_complete%>%
+  mutate(surface_type = ifelse(str_detect(surface,"^\\s*(astroplay|astroturf|fieldturf|matrixturf|sportturf)\\s*$"), "Artificial", "Natural"))%>%
+  mutate(surface_type = ifelse(surface == "Unknown", "Unknown", surface_type))
+
+#again quickly run a table here to make sure we didn't mis-capture any types
+
+table(pbp_complete$surface_type)
+```
+Finished Cleaning DF
+```{r}
+write.csv(pbp_complete, "G:/My Drive/Personal Projects/pbp_complete.csv", row.names = FALSE)
+```
+
+
+
+
+
+
+
