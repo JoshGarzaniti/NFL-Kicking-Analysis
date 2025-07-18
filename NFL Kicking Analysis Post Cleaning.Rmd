@@ -328,7 +328,7 @@ distance_vs_probability_plot_3 = ggplot(distance_summary,
 distance_vs_probability_plot_3
 ```
 
-##Mixed Effect Modeling
+##Mixed Effect Modeling before scaling
 
 One thing I want to do in this analysis is break down how how different players, teams, stadiums, roof types, and surfaces impact the expected kicker probabilities and make probability above expected.
 
@@ -341,6 +341,36 @@ kicker_mixed_model = glmer(result ~ kick_distance + temp + roof + wind + surface
 
 summary(kicker_mixed_model)
 ```
+Takeaways:
+- std being 0.4489 shows that some kickers are better/worse than average
+- +/- 0.45 log-odds translates to +/-11 percentage points in make probability
+-temperature slightly increases your odds of making a kick
+-wind slightly decreases your odds of making a kick
+-none of the roof types or surface types are significant in terms of p(making a kick)
+
+
+##Scaling
+
+Scaling to a mean of 0 and a SD of 1
+```{r}
+pbp_complete$kick_distance_scaled = scale(pbp_complete$kick_distance)
+pbp_complete$temp_scaled = scale(pbp_complete$temp)
+pbp_complete$wind_scaled = scale(pbp_complete$wind)
+```
+
+##Mixed Effect Model with Scaling
+
+```{r}
+kicker_mixed_model = glmer(result ~ kick_distance_scaled + temp_scaled + roof + wind_scaled + surface + (1|kicker_player_name), 
+                          data = pbp_complete, 
+                          family = binomial, control = glmerControl(optimizer = "bobyqa"))
+
+summary(kicker_mixed_model)
+```
+Takeaways after scaling:
+-your odds of making a kick decrease by ~71.32% for each standard deviation (roughly 9 yards) increase from the average distance 
+-odds actually increase by ~12.04% for every SD increase in temperature (~20 degrees)
+-odds decrease ~10.17% for each SD increase in wind speed (~5.5mph)
 
 Plotting
 ```{r}
