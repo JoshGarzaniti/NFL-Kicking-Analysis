@@ -25,6 +25,7 @@ library(nflplotR)
 library(nflfastR)
 library(mice)
 library(lme4)
+library(arm)
 ```
 
 
@@ -372,18 +373,109 @@ Takeaways after scaling:
 -odds actually increase by ~12.04% for every SD increase in temperature (~20 degrees)
 -odds decrease ~10.17% for each SD increase in wind speed (~5.5mph)
 
-Plotting
+##What are kicker-specific random effects?
 ```{r}
-ranef(model_kicker)$kicker %>%
-  as.data.frame() %>%
-  tibble::rownames_to_column("kicker") %>%
-  ggplot(aes(x = reorder(kicker, `(Intercept)`), y = `(Intercept)`)) +
-  geom_col() +
-  coord_flip() +
-  dark_theme_minimal() +
-  labs(title = "Kicker-Specific Random Effects", y = "Random Intercept", x = "Kicker")
+kicker_effects = ranef(kicker_mixed_model, condVar = TRUE)$kicker_player_name
+
+kicker_effects = kicker_effects%>%
+  arrange(desc(`(Intercept)`))
+
+head(kicker_effects, 10)
+
+tail(kicker_effects, 10)
+```
+
+The intercepts we see here display the impacts or effects individual kickers have on kick probability given roof type, temperature, wind speed, surface type and distance. So given all those variables guess who is head and shoulders above the rest of the league....Justin Tucker by a wide margin. Anything positive means above average and anything negative is under average
+
+##Plotting Kicker Effects out
+
+Lets filter down to current NFL kickers and get a gauge of who is performing above league average in terms of kick probability for all of these factors taken into consideration.
+
+
+```{r}
+random_effects_df = as.data.frame(kicker_effects)
+
+random_effects_df$kicker = row.names(kicker_effects)
+```
+
+
+```{r}
+standard_error_kicker = se.ranef(kicker_mixed_model)$kicker_player_name[,1]
+
+random_effects_df$standard_error = standard_error_kicker
+
+random_effects_df = random_effects_df%>%
+  mutate(lower = `(Intercept)` - 1.96*standard_error,
+         upper = `(Intercept)` + 1.96*standard_error)
 
 ```
+
+Filtering down to current players
+```{r}
+random_effects_df = random_effects_df%>%
+  filter(kicker %in% c("J.Bates", "J.Tucker", "C.Boswell", "C.Dicker", "B.Aubrey",
+                       "C.McLaughlin", "J.Elliott", "T.Bass", "J.Sanders", "H.Butker",
+                       "T.Loop", "K.Fairbairn", "C.Santos", "J.Karty", "M.Gay", "W.Lutz",
+                       "E.McPherson", "D.Carlson", "B.McManus", "J.Myers", "W.Reichard",
+                       "Y.Koo", "Z.Gonzalez", "J.Moody", "C.Little", "A.Borregales", 
+                       "C.Ryland", "G.Gano", "D.Hopkins", "M.Wright", "S.Shrader", 
+                       "B.Grupe", "J.Slye", "J.McAtamney", "J.Parker Romo", "C.Davis",
+                       "A.Carlson", "G.Zuerlein", "N.Folk", "G.Joseph", "E.Pineiro", 
+                       "A.Seibert", "M.Prater", "B.Narveson", "L.Havrisik", "C.York",
+                       "T.Brown", "C.Dunn", "R.Bullock", "B.Maher", "M.Ammendola", 
+                       "N.Sciba", "J.Garibay", "R.Patterson", "J. McCourt", "C.Shudak", "M.Badgley"))
+```
+
+
+
+Plot
+```{r}
+Kicker_Random_Effects_plot1 = ggplot(random_effects_df, aes(x = reorder(kicker, `(Intercept)`), y = `(Intercept)`))+
+  geom_point()+
+  geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.2)+
+  coord_flip()+
+  geom_hline(yintercept = 0, linetype = "dashed")+
+  dark_theme_minimal()+
+  labs(title = "Current NFL Kicker-Specific Random Effects with 95% CI",
+       y = "Random Intercept (Effect on Log-Odds)",
+       x = "Kicker") 
+
+Kicker_Random_Effects_plot1
+
+```
+Looking at the plot in terms of P(making a kick)
+```{r}
+probability_function = function(logit){
+  plogis(logit)
+}
+
+
+random_effects_probability_df = random_effects_df%>%
+  mutate(probability = probability_function(`(Intercept)`))%>%
+  arrange(desc(probability))
+
+head(random_effects_probability_df, 10)
+```
+
+Plotting
+```{r}
+mean_prob = mean(random_effects_probability_df$probability, na.rm = TRUE)
+
+Kicker_Random_Effects_prob = ggplot(random_effects_probability_df, aes(x = reorder(kicker, probability), y = probability)) +
+  geom_hline(yintercept = mean_prob, linetype = "dashed") +
+  geom_point() +
+  coord_flip() +
+  dark_theme_minimal() +
+  labs(title = "Current NFL Kicker-Specific Random Effects", 
+       subtitle = "In terms of probability of making a kick",
+       y = "Probability",
+       x = "Kicker")
+
+Kicker_Random_Effects_prob
+```
+
+
+
 
 
 
