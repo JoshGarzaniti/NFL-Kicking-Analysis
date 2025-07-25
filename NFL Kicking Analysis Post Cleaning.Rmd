@@ -26,6 +26,8 @@ library(nflfastR)
 library(mice)
 library(lme4)
 library(arm)
+library(car)
+library(effects)
 ```
 
 
@@ -473,6 +475,175 @@ Kicker_Random_Effects_prob = ggplot(random_effects_probability_df, aes(x = reord
 
 Kicker_Random_Effects_prob
 ```
+
+Highlighting specific players
+
+```{r}
+highlighted_kicker = "W.Lutz" #Just change this to the kicker you want to study
+
+random_effects_probability_df = random_effects_probability_df%>%
+  mutate(highlight = ifelse(kicker == highlighted_kicker, "Highlighted", "Other"))
+
+mean_prob = mean(random_effects_probability_df$probability, na.rm = TRUE)
+
+ggplot(random_effects_probability_df, aes(x = reorder(kicker, probability), 
+                                          y = probability, 
+                                          fill = highlight))+
+  geom_col(show.legend = FALSE)+
+  geom_hline(yintercept = mean_prob, linetype = "dashed")+
+  coord_flip()+
+  scale_fill_manual(values = c("Highlighted" = "orange", "Other" = "gray70"))+
+  dark_theme_minimal()+
+  labs(title = "Kicker-Specific Random Effects", 
+       subtitle = "In terms of probability of making a kick",
+       y = "Probability",
+       x = "Kicker")
+
+```
+
+##Modeling with Surface Type instead of Surface
+I want to try and run another model but this time with surface (artificial or real), instead of the specific brand of surface type used to capture general trends.
+
+```{r}
+kicker_mixed_model2 = glmer(result ~ kick_distance_scaled + temp_scaled + roof + wind_scaled + surface_type + (1|kicker_player_name), 
+                          data = pbp_complete, 
+                          family = binomial, control = glmerControl(optimizer = "bobyqa"))
+
+summary(kicker_mixed_model2)
+```
+-according to this model, natural grass has a slightly more negative impact on make probability vs artificial surfaces, but it's not statistically significant.
+
+##Next Modeling Steps
+
+Add game_seconds_remaining, score differential, quarter.
+
+Add distance * wind interaction.
+
+Consider random slope for distance per kicker.
+
+Check AIC / model fit improvements.
+
+Check for multicollinearity (VIF) after adding interactions.
+
+Mutating to create a score differential variable and a score differential type variable
+```{r}
+pbp_complete = pbp_complete%>%
+  mutate(score_differential = abs(total_home_score - total_away_score),
+         score_differential_type = case_when(
+           score_differential == 0 ~ "Tied",
+           score_differential <= 7 ~ "One Possession",
+           score_differential > 7 & score_differential <= 14 ~ "Close",
+           score_differential > 14 ~ "Blowout"))
+
+pbp_complete$score_differential_type = factor(pbp_complete$score_differential_type,
+           levels = c("Tied", "One Possession", "Close", "Blowout"))
+
+pbp_complete = pbp_complete%>%
+  mutate(score_differential = as.numeric(score_differential))
+  
+```
+
+
+Modeling with Score Differential
+```{r}
+kicker_mixed_model3 = glmer(result ~ kick_distance_scaled + temp_scaled + roof + wind_scaled + surface_type + score_differential +(1|kicker_player_name), 
+                          data = pbp_complete, 
+                          family = binomial, control = glmerControl(optimizer = "bobyqa"))
+
+summary(kicker_mixed_model3)
+```
+
+We can see that score differential is very significant in terms of individual kickers making their kicks. In fact for each point increase in the score differential, kickers increase their odds of making an individual kick by 2.06%
+
+
+Plotting this out
+```{r}
+
+prob_by_score_diff = pbp_complete%>%
+  group_by(score_differential)%>%
+  summarise(prob_make = mean(result))
+
+score_differential_make_plot = ggplot(prob_by_score_diff, aes(x = score_differential, y = prob_make)) +
+  geom_point() +
+  geom_smooth(method = "glm", method.args = list(family = "binomial")) +
+  dark_theme_minimal() +
+  labs(title = "Impact of Score Differential on NFL Kick Probability",
+       subtitle = "1999-2024",
+       x = "Score Differential",
+       y = "Probability of Make")
+
+score_differential_make_plot
+```
+
+
+
+
+
+Quick Multi-collinearity check
+```{r}
+kicker_glm_fixed = glm(result ~ kick_distance_scaled + temp_scaled + roof + wind_scaled + surface_type + score_differential,
+                       data = pbp_complete,
+                       family = binomial)
+vif(kicker_glm_fixed)
+```
+
+All of my VIF levels are under 2 which is great to see in terms of having variables in my model
+
+Last model
+```{r}
+kicker_mixed_model4 = glmer(result ~ kick_distance_scaled + temp_scaled + roof + wind_scaled + surface_type + score_differential_type +(1|kicker_player_name), 
+                          data = pbp_complete, 
+                          family = binomial, control = glmerControl(optimizer = "bobyqa"))
+
+summary(kicker_mixed_model4)
+```
+Visualzing effects
+```{r}
+score_diff_effect = Effect("score_differential_type", kicker_mixed_model4)
+
+kick_dist_effect = Effect("kick_distance_scaled", kicker_mixed_model4)
+
+temp_effect = Effect("temp_scaled", kicker_mixed_model4)
+
+roof_effect = Effect("roof", kicker_mixed_model4)
+
+wind_effect = Effect("wind_scaled", kicker_mixed_model4)
+
+surface_type_effect = Effect("surface_type", kicker_mixed_model4)
+
+```
+
+score differential
+```{r}
+plot(score_diff_effect)
+```
+
+distance
+```{r}
+plot(kick_dist_effect)
+```
+
+temperature
+```{r}
+plot(temp_effect)
+```
+
+roof types
+```{r}
+plot(roof_effect)
+```
+
+wind speed
+```{r}
+plot(wind_effect)
+```
+
+surface type
+```{r}
+plot(surface_type_effect)
+```
+
+
 
 
 
