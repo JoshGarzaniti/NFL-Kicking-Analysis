@@ -28,6 +28,10 @@ library(lme4)
 library(arm)
 library(car)
 library(effects)
+library(Matrix)
+library(pROC)
+library(SHAPforxgboost)
+
 ```
 
 
@@ -589,7 +593,7 @@ vif(kicker_glm_fixed)
 
 All of my VIF levels are under 2 which is great to see in terms of having variables in my model
 
-Last model
+Next model
 ```{r}
 kicker_mixed_model4 = glmer(result ~ kick_distance_scaled + temp_scaled + roof + wind_scaled + surface_type + score_differential_type +(1|kicker_player_name), 
                           data = pbp_complete, 
@@ -597,6 +601,26 @@ kicker_mixed_model4 = glmer(result ~ kick_distance_scaled + temp_scaled + roof +
 
 summary(kicker_mixed_model4)
 ```
+Last Mixed Effects Model
+```{r}
+kicker_mixed_model5 = glmer(result ~ kick_distance_scaled + 
+                              temp_scaled + 
+                              roof + 
+                              wind_scaled + 
+                              surface_type + 
+                              score_differential_type + 
+                              quarter_seconds_remaining +
+                              half_seconds_remaining + 
+                              game_seconds_remaining + 
+                              (1|kicker_player_name), 
+                          data = pbp_complete, 
+                          family = binomial, control = glmerControl(optimizer = "bobyqa"))
+
+summary(kicker_mixed_model5)
+```
+
+Here we can see that time remaining in a quarter, half, and game doesn't have a significant impact on a kicker's make probability.
+
 Visualzing effects
 ```{r}
 score_diff_effect = Effect("score_differential_type", kicker_mixed_model4)
@@ -643,11 +667,94 @@ surface type
 plot(surface_type_effect)
 ```
 
+```{r}
+predictive_data = pbp_complete_grouped%>%
+  mutate(score_differential = abs(total_home_score - total_away_score),
+         score_differential_type = case_when(
+           score_differential == 0 ~ "Tied",
+           score_differential <= 7 ~ "One Possession",
+           score_differential > 7 & score_differential <= 14 ~ "Close",
+           score_differential > 14 ~ "Blowout"),
+         roof = as.factor(roof),
+         score_differential_type = as.factor(score_differential_type),
+         kick_distance = as.numeric(kick_distance),
+         wind = as.numeric(wind),
+         temp = as.numeric(temp),
+         result = as.numeric(result),
+         kicker_player_name = as.factor(kicker_player_name))%>%
+  dplyr::select(result, kicker_player_name, kick_distance, wind, roof, temp,  score_differential_type, probability_advanced)
+
+```
 
 
+##Building Predictive models with our Significant Variables
+
+```{r}
+#make the training data of our model everything except our target var
+predictive_data_model = model.matrix(result ~ . -1, data = predictive_data)
+
+#make the result of the kick the target var
+labels = predictive_data$result
+```
+
+Train/test split
+```{r}
+set.seed(303)
+xgbtrain_index = createDataPartition(labels, p = 0.8, list = FALSE)
+
+xgbtrain_data = predictive_data_model[xgbtrain_index, ]
+xgbtrain_labels = labels[xgbtrain_index]
+
+xgbtest_data = predictive_data_model[-xgbtrain_index, ]
+xgbtest_labels = labels[-xgbtrain_index]
+```
+
+Convert it to a matrix
+```{r}
+xgbdtrain = xgb.DMatrix(data = xgbtrain_data, label = xgbtrain_labels)
+xgbdtest = xgb.DMatrix(data = xgbtest_data, label = xgbtest_labels)
+```
+
+#First XGB Predictive model
+```{r}
+xgb_model1 = xgboost(data = xgbdtrain, 
+                    objective = "binary:logistic", 
+                    eval_metric = "logloss", 
+                    nrounds = 100, 
+                    verbose = 1)
+```
+
+Test the trained model
+```{r}
+pred_xgb1 = predict(xgb_model1, xgbdtest)
+```
+
+Accuracy of the First XGBoost Model
+```{r}
+aucxgb1 = roc(xgbtest_labels, pred_xgb1)
+print(paste("AUC:", aucxgb1$auc))
+```
+
+Variable Importance
+```{r}
+X_train_df <- as.data.frame(as.matrix(xgbtrain_data))
+
+shap_values = shap.values(xgb_model = xgb_model1, X_train = X_train_df)
+shap_long = shap.prep(shap_contrib = shap_values$shap_score, X_train = X_train_df)
 
 
+shap.plot.summary(shap_long)
+```
+
+```{r}
+shap_matrix = predict(xgb_model1, xgbtrain_data, predcontrib = TRUE)
 
 
+shap_df = as.data.frame(shap_matrix)
+
+top10_shap = sort(summary_shap, decreasing = TRUE)[1:10]
+
+barplot(top10_shap, las = 2, main = "Top 10 SHAP Feature Importance", col = "steelblue")
+```
 
 
