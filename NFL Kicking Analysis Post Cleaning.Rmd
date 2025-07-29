@@ -667,8 +667,50 @@ surface type
 plot(surface_type_effect)
 ```
 
+## Predictive model Data
+
 ```{r}
-predictive_data = pbp_complete_grouped%>%
+
+kicker_success = pbp_complete_grouped%>%
+  group_by(kicker_player_name)%>%
+  summarize(kicker_fg_pct = mean(result, na.rm = TRUE))
+
+
+classification_data = pbp_complete_grouped%>%
+  mutate(
+    score_differential = abs(total_home_score - total_away_score),
+    score_differential_type = case_when(
+      score_differential == 0 ~ "Tied",
+      score_differential <= 7 ~ "One Possession",
+      score_differential > 7 & score_differential <= 14 ~ "Close",
+      score_differential > 14 ~ "Blowout"),
+    posteam_type = as.factor(posteam_type),
+    roof = as.factor(roof),
+    surface_type = as.factor(surface_type),
+    score_differential_type = as.factor(score_differential_type),
+    season_type = as.factor(season_type))%>%
+  left_join(kicker_success, by = "kicker_player_name")%>%
+  dplyr::select(
+    result, 
+    kicker_fg_pct,
+    kick_distance,
+    wind,
+    temp,
+    yardline_100,
+    game_seconds_remaining,
+    quarter_seconds_remaining,
+    posteam_type,
+    roof,
+    surface_type,
+    score_differential_type,
+    season_type)%>%
+  drop_na()
+
+```
+
+
+```{r}
+regression_data = pbp_complete_grouped%>%
   mutate(score_differential = abs(total_home_score - total_away_score),
          score_differential_type = case_when(
            score_differential == 0 ~ "Tied",
@@ -680,9 +722,10 @@ predictive_data = pbp_complete_grouped%>%
          kick_distance = as.numeric(kick_distance),
          wind = as.numeric(wind),
          temp = as.numeric(temp),
-         result = as.numeric(result),
          kicker_player_name = as.factor(kicker_player_name))%>%
-  dplyr::select(result, kicker_player_name, kick_distance, wind, roof, temp,  score_differential_type, probability_advanced)
+  dplyr::select(kicker_player_name, kick_distance, wind, roof, temp, score_differential_type, probability_advanced, surface_type, yardline_100, game_seconds_remaining, quarter_seconds_remaining, goal_to_go, ydstogo, posteam_type)
+
+
 
 ```
 
@@ -691,10 +734,10 @@ predictive_data = pbp_complete_grouped%>%
 
 ```{r}
 #make the training data of our model everything except our target var
-predictive_data_model = model.matrix(result ~ . -1, data = predictive_data)
+regression_data_model = model.matrix(probability_advanced ~ . -1, data = regression_data)
 
-#make the result of the kick the target var
-labels = predictive_data$result
+#make the probability_advanced of the kick the target var
+labels = regression_data$probability_advanced
 ```
 
 Train/test split
@@ -702,10 +745,10 @@ Train/test split
 set.seed(303)
 xgbtrain_index = createDataPartition(labels, p = 0.8, list = FALSE)
 
-xgbtrain_data = predictive_data_model[xgbtrain_index, ]
+xgbtrain_data = regression_data_model[xgbtrain_index, ]
 xgbtrain_labels = labels[xgbtrain_index]
 
-xgbtest_data = predictive_data_model[-xgbtrain_index, ]
+xgbtest_data = regression_data_model[-xgbtrain_index, ]
 xgbtest_labels = labels[-xgbtrain_index]
 ```
 
@@ -715,46 +758,123 @@ xgbdtrain = xgb.DMatrix(data = xgbtrain_data, label = xgbtrain_labels)
 xgbdtest = xgb.DMatrix(data = xgbtest_data, label = xgbtest_labels)
 ```
 
-#First XGB Predictive model
+#First XGB Predictive model: Regression
 ```{r}
 xgb_model1 = xgboost(data = xgbdtrain, 
-                    objective = "binary:logistic", 
-                    eval_metric = "logloss", 
+                    objective = "reg:squarederror", 
+                    eval_metric = "rmse", 
                     nrounds = 100, 
                     verbose = 1)
 ```
 
-Test the trained model
-```{r}
-pred_xgb1 = predict(xgb_model1, xgbdtest)
-```
-
-Accuracy of the First XGBoost Model
-```{r}
-aucxgb1 = roc(xgbtest_labels, pred_xgb1)
-print(paste("AUC:", aucxgb1$auc))
-```
-
-Variable Importance
-```{r}
-X_train_df <- as.data.frame(as.matrix(xgbtrain_data))
-
-shap_values = shap.values(xgb_model = xgb_model1, X_train = X_train_df)
-shap_long = shap.prep(shap_contrib = shap_values$shap_score, X_train = X_train_df)
-
-
-shap.plot.summary(shap_long)
-```
+##Predictions for regression model
 
 ```{r}
-shap_matrix = predict(xgb_model1, xgbtrain_data, predcontrib = TRUE)
+regression_predictions = predict(xgb_model1, xgbdtest)
+
+head(regression_predictions, 5)
+
+reg_compare_df = data.frame(Actual = xgbtest_labels,
+  Predicted = regression_predictions)
 
 
-shap_df = as.data.frame(shap_matrix)
+reg_rmse = sqrt(mean((reg_compare_df$Actual - reg_compare_df$Predicted)^2))
 
-top10_shap = sort(summary_shap, decreasing = TRUE)[1:10]
+reg_rmse
 
-barplot(top10_shap, las = 2, main = "Top 10 SHAP Feature Importance", col = "steelblue")
+reg_mae = mean(abs(reg_compare_df$Actual - reg_compare_df$Predicted))
+
+reg_mae
+
+reg_res = sum((reg_compare_df$Actual - reg_compare_df$Predicted)^2)
+reg_tot = sum((reg_compare_df$Actual - mean(reg_compare_df$Actual))^2)
+reg_r_squared = 1 - (reg_res / reg_tot)
+
+reg_r_squared
 ```
+
+Plot
+```{r}
+reg_plot = ggplot(reg_compare_df, aes(x = Actual, y = Predicted)) +
+  geom_point(alpha = 0.5, color = "blue") +
+  geom_abline(slope = 1, intercept = 0, color = "red", linetype = "dashed") +
+  labs(title = "Predicted vs Actual Probability Advanced",
+       x = "Actual Probability",
+       y = "Predicted Probability") +
+  dark_theme_minimal()
+
+reg_plot
+```
+
+As you can see our model at trying to predict the probability a try will be successful is incredibly hard to capture especially when trying to streamline by using minimal features (limit user inputs for the app)
+
+##Binary Classification XGBoost model
+
+```{r}
+classification_model_data = model.matrix(result ~ . -1, data = classification_data)
+
+classification_labels = classification_data$result
+```
+
+Train-Test-Split
+```{r}
+set.seed(303)
+class_train_index = createDataPartition(classification_labels, p = 0.8, list = FALSE)
+
+class_train_data = classification_model_data[class_train_index, ]
+class_train_labels = classification_labels[class_train_index]
+
+class_test_data = classification_model_data[-class_train_index, ]
+class_test_labels = classification_labels[-class_train_index]
+```
+
+Convert to a matrix again
+```{r}
+class_dtrain = xgb.DMatrix(data = class_train_data, label = class_train_labels)
+class_dtest = xgb.DMatrix(data = class_test_data, label = class_test_labels)
+```
+
+Classification Model
+```{r}
+xgb_class_model2 = xgboost(
+  data = class_dtrain,
+  objective = "binary:logistic",
+  eval_metric = "logloss",
+  nrounds = 150,
+  eta = 0.1,
+  max_depth = 6,
+  verbose = 1)
+```
+
+Predicting with the model
+```{r}
+class_predictions = predict(xgb_class_model2, class_dtest)
+
+predicted_class = ifelse(class_predictions >= 0.5, 1, 0)
+```
+
+Confusion matrix table
+```{r}
+conf_matrix = table(Predicted = predicted_class, Actual = class_test_labels)
+
+conf_matrix
+
+confusionMatrix(
+  factor(predicted_class), 
+  factor(class_test_labels), 
+  positive = "1")
+```
+
+AUC Analysis
+```{r}
+roc_obj = roc(class_test_labels, class_predictions)
+
+auc_val = auc(roc_obj)
+
+plot(roc_obj, col = "orange", main = "ROC Curve - Kick Make Probability Model")
+```
+
+
+
 
 
