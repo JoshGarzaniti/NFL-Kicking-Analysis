@@ -1,0 +1,153 @@
+---
+title: "NFL Kicking Shiny App"
+author: "Josh Garzaniti"
+date: "2025-07-31"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+packages used
+```{r}
+library(ggplot2)
+library(ggdark)
+library(caret)
+library(tidyverse)
+library(tidyr)
+library(stringr)
+library(xgboost)
+library(randomForest)
+library(ggrepel)
+library(nflreadr)
+library(nflplotR)
+library(nflfastR)
+library(mice)
+library(lme4)
+library(arm)
+library(car)
+library(effects)
+library(Matrix)
+library(pROC)
+library(SHAPforxgboost)
+library(ROSE)
+library(Metrics)
+library(shiny)
+library(DT)
+```
+
+load in pbp data
+```{r}
+pbp_complete_grouped = read.csv("G:/My Drive/Personal Projects/pbp_complete_grouped.csv")
+```
+
+load in final blanaced model
+```{r}
+xgb_balanced_model_final = xgb.load("G:/My Drive/Personal Projects/nfl_kicking_balanced_model_final.model")
+```
+
+create a cheat sheet for kickers since we used their mean kicking fg %'s and not their names in the final model
+```{r}
+cheat_sheet = pbp_complete_grouped%>%
+  group_by(kicker_player_name)%>%
+  summarize(fg_pct = round(mean(result, na.rm = TRUE), 3))%>%
+  arrange(desc(fg_pct))
+```
+
+shiny app
+```{r}
+nfl_kick_ui = fluidPage(
+  titlePanel("Kick Success Predictor"),
+  
+  sidebarLayout(
+    sidebarPanel(
+      selectInput("kicker_name", "Select Kicker:", choices = cheat_sheet$kicker_player_name),
+      numericInput("kick_distance", "Kick Distance (yards):", value = 30, min = 1, max = 70),
+      numericInput("wind", "Wind (mph):", value = 5),
+      numericInput("temp", "Temperature (F):", value = 70),
+      numericInput("yardline_100", "Yardline (100-yard scale):", value = 20),
+      numericInput("game_seconds_remaining", "Game Seconds Remaining:", value = 600),
+      numericInput("quarter_seconds_remaining", "Quarter Seconds Remaining:", value = 300),
+      selectInput("posteam_type", "Posteam Type:", choices = c("home", "away")),
+      selectInput("roof", "Roof Type:", choices = c("closed", "dome", "open", "outdoors")),
+      selectInput("surface_type", "Surface Type:", choices = c("Artificial", "Natural")),
+      selectInput("score_differential_type", "Score Differential Type:", choices = c("Blowout", "Close", "One Possession", "Tied")),
+      selectInput("season_type", "Season Type:", choices = c("POST", "REG")),
+      actionButton("predict", "Predict Kick Success")
+    ),
+    
+    mainPanel(
+      h3("Prediction Result"),
+      verbatimTextOutput("prediction_output"),
+      h3("Kicker FG% Cheat Sheet"),
+      DTOutput("kicker_table")
+    )
+  )
+)
+```
+
+Setting up the Server functions
+```{r}
+nfl_kicking_server = function(input, output) {
+  
+  #Display Cheat Sheet
+  output$kicker_table = renderDT({
+    datatable(cheat_sheet)
+  })
+  
+  observeEvent(input$predict, {
+    
+    #Get kicker FG% from selected kicker
+  kicker_fg_pct_value = cheat_sheet%>%
+    filter(kicker_player_name == input$kicker_name)%>%
+    pull(fg_pct)
+    
+  if(length(kicker_fg_pct_value) == 0) {
+    kicker_fg_pct_value = 0.8  #default value if they don't select a name
+}
+    
+    #data frame for prediction with user inputs
+    new_data = data.frame(
+      kicker_fg_pct = kicker_fg_pct_value,
+      kick_distance = input$kick_distance,
+      wind = input$wind,
+      temp = input$temp,
+      yardline_100 = input$yardline_100,
+      game_seconds_remaining = input$game_seconds_remaining,
+      quarter_seconds_remaining = input$quarter_seconds_remaining,
+      posteam_type = factor(input$posteam_type, levels = levels(classification_data$posteam_type)),
+      roof = factor(input$roof, levels = levels(classification_data$roof)),
+      surface_type = factor(input$surface_type, levels = levels(classification_data$surface_type)),
+      score_differential_type = factor(input$score_differential_type, levels = levels(classification_data$score_differential_type)),
+      season_type = factor(input$season_type, levels = levels(classification_data$season_type))
+    )
+    
+    #Convert factors to dummy variables like in training
+    new_data_matrix = model.matrix(~ . -1, data = new_data)
+    
+    #Create DMatrix for prediction
+    new_dmatrix = xgb.DMatrix(data = new_data_matrix)
+    
+    #Predict using our new threshold of 0.52
+    pred_prob = predict(xgb_balanced_model_final, new_dmatrix)
+    
+    prediction_result = ifelse(pred_prob >= 0.52, "Kick SUCCESSFUL", "Kick USUCCESSFUL")
+    
+    output$prediction_output = renderPrint({
+      cat("Predicted Probability of Success:", round(pred_prob, 3), "\n")
+      cat("Prediction:", prediction_result)
+    })
+    
+  })
+}
+```
+
+Running the app
+```{r}
+shinyApp(ui = nfl_kick_ui, server = nfl_kicking_server)
+```
+
+
+
+

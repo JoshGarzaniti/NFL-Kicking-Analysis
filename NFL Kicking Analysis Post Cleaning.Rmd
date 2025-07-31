@@ -33,6 +33,8 @@ library(pROC)
 library(SHAPforxgboost)
 library(ROSE)
 library(Metrics)
+library(shiny)
+library(DT)
 ```
 
 
@@ -1175,6 +1177,26 @@ roc_obj_final = roc(balanced_test_labels, balanced_predictions_final)
 plot(roc_obj_final, col = "forestgreen", lwd = 2, main = "ROC Curve - Balanced XGBoost Model")
 abline(a = 0, b = 1, lty = 2, col = "gray")
 ```
+
+##Making this final model an app that Special Teams coaching staff/analysts can deploy
+
+First I want to create a cheat sheet for users to have since instead of using kicker names in the model, we used their mean fg success rate.
+
+save pbp_complete_grouped and final model
+```{r}
+write.csv(pbp_complete_grouped, "G:/My Drive/Personal Projects/pbp_complete_grouped.csv", row.names = FALSE)
+```
+xgb model
+```{r}
+xgb.save(xgb_balanced_model_final, "G:/My Drive/Personal Projects/nfl_kicking_balanced_model_final.model")
+```
+
+
+
+
+
+
+
 
 
 
