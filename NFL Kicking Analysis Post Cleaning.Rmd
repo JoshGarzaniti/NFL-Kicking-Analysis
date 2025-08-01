@@ -1191,6 +1191,79 @@ xgb model
 xgb.save(xgb_balanced_model_final, "G:/My Drive/Personal Projects/nfl_kicking_balanced_model_final.model")
 ```
 
+##Answering the Question:How do we rank kickers in the NFL Dynamically and who are the best kickers in the league right now? (For both Field Goals and XP's)
+
+creating makes above expected variable based on how the kicker historically performed and what the probability of each kick was statistically
+```{r}
+ranked_kickers = pbp_complete_grouped%>%
+  mutate(makes_above_expected = result - probability_advanced)
+```
+
+Ranking kickers
+```{r}
+ranked_kickers_total = ranked_kickers%>%
+  group_by(kicker_player_name)%>%
+  summarise(kicks_attempted = n(),
+            kicks_made = sum(result),
+            percentage = (kicks_made / kicks_attempted),
+            total_above_expected = sum(makes_above_expected),
+            average_above_expected = mean(makes_above_expected),
+            .groups = 'drop')%>%
+  arrange(desc(total_above_expected))
+
+head(ranked_kickers_total, 10)
+```
+
+Ranked kickers by average above expected
+```{r}
+ranked_kickers_average = ranked_kickers%>%
+  group_by(kicker_player_name)%>%
+  summarise(kicks_attempted = n(),
+            kicks_made = sum(result),
+            percentage = (kicks_made / kicks_attempted),
+            total_above_expected = sum(makes_above_expected),
+            average_above_expected = mean(makes_above_expected),
+            .groups = 'drop')%>%
+  arrange(desc(average_above_expected))
+
+head(ranked_kickers_average, 10)
+
+```
+
+Historically these are our best performers on kicking performances above expected probabilities of each kick being made
+
+##Looking at current players only:
+```{r}
+ranked_kickers_total_current = ranked_kickers%>%
+  filter(kicker_player_name %in% c("J.Bates", "J.Tucker", "C.Boswell", "C.Dicker", "B.Aubrey", "C.McLaughlin", "J.Elliott", "T.Bass", "J.Sanders", "H.Butker", "T.Loop", "K.Fairbairn", "C.Santos", "J.Karty", "M.Gay", "W.Lutz", "E.McPherson", "D.Carlson", "B.McManus", "J.Myers", "W.Reichard", "Y.Koo", "Z.Gonzalez", "J.Moody", "C.Little", "A.Borregales", "C.Ryland", "G.Gano", "D.Hopkins", "M.Wright", "S.Shrader", "B.Grupe", "J.Slye", "J.McAtamney", "J.Parker Romo", "C.Davis", "A.Carlson", "G.Zuerlein", "N.Folk", "G.Joseph", "E.Pineiro", "A.Seibert", "M.Prater", "B.Narveson", "L.Havrisik", "C.York", "T.Brown", "C.Dunn", "R.Bullock", "B.Maher", "M.Ammendola", "N.Sciba", "J.Garibay", "R.Patterson", "J. McCourt", "C.Shudak", "M.Badgley"))%>%
+  group_by(kicker_player_name)%>%
+  summarise(kicks_attempted = n(),
+            kicks_made = sum(result),
+            percentage = (kicks_made / kicks_attempted),
+            total_above_expected = sum(makes_above_expected),
+            average_above_expected = mean(makes_above_expected),
+            .groups = 'drop')%>%
+  arrange(desc(total_above_expected))
+
+head(ranked_kickers_total_current, 10)
+```
+
+current players but for percentage above expected
+```{r}
+ranked_kickers_average_current = ranked_kickers%>%
+  filter(kicker_player_name %in% c("J.Bates", "J.Tucker", "C.Boswell", "C.Dicker", "B.Aubrey", "C.McLaughlin", "J.Elliott", "T.Bass", "J.Sanders", "H.Butker", "T.Loop", "K.Fairbairn", "C.Santos", "J.Karty", "M.Gay", "W.Lutz", "E.McPherson", "D.Carlson", "B.McManus", "J.Myers", "W.Reichard", "Y.Koo", "Z.Gonzalez", "J.Moody", "C.Little", "A.Borregales", "C.Ryland", "G.Gano", "D.Hopkins", "M.Wright", "S.Shrader", "B.Grupe", "J.Slye", "J.McAtamney", "J.Parker Romo", "C.Davis", "A.Carlson", "G.Zuerlein", "N.Folk", "G.Joseph", "E.Pineiro", "A.Seibert", "M.Prater", "B.Narveson", "L.Havrisik", "C.York", "T.Brown", "C.Dunn", "R.Bullock", "B.Maher", "M.Ammendola", "N.Sciba", "J.Garibay", "R.Patterson", "J. McCourt", "C.Shudak", "M.Badgley"))%>%
+  group_by(kicker_player_name)%>%
+  summarise(kicks_attempted = n(),
+            kicks_made = sum(result),
+            percentage = (kicks_made / kicks_attempted),
+            total_above_expected = sum(makes_above_expected),
+            average_above_expected = mean(makes_above_expected),
+            .groups = 'drop')%>%
+  arrange(desc(average_above_expected))
+
+head(ranked_kickers_average_current, 10)
+```
+
 
 
 
