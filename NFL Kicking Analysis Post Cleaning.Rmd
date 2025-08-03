@@ -1251,7 +1251,6 @@ head(ranked_kickers_total_current, 10)
 current players but for percentage above expected
 ```{r}
 ranked_kickers_average_current = ranked_kickers%>%
-  filter(kicker_player_name %in% c("J.Bates", "J.Tucker", "C.Boswell", "C.Dicker", "B.Aubrey", "C.McLaughlin", "J.Elliott", "T.Bass", "J.Sanders", "H.Butker", "T.Loop", "K.Fairbairn", "C.Santos", "J.Karty", "M.Gay", "W.Lutz", "E.McPherson", "D.Carlson", "B.McManus", "J.Myers", "W.Reichard", "Y.Koo", "Z.Gonzalez", "J.Moody", "C.Little", "A.Borregales", "C.Ryland", "G.Gano", "D.Hopkins", "M.Wright", "S.Shrader", "B.Grupe", "J.Slye", "J.McAtamney", "J.Parker Romo", "C.Davis", "A.Carlson", "G.Zuerlein", "N.Folk", "G.Joseph", "E.Pineiro", "A.Seibert", "M.Prater", "B.Narveson", "L.Havrisik", "C.York", "T.Brown", "C.Dunn", "R.Bullock", "B.Maher", "M.Ammendola", "N.Sciba", "J.Garibay", "R.Patterson", "J. McCourt", "C.Shudak", "M.Badgley"))%>%
   group_by(kicker_player_name)%>%
   summarise(kicks_attempted = n(),
             kicks_made = sum(result),
@@ -1259,14 +1258,191 @@ ranked_kickers_average_current = ranked_kickers%>%
             total_above_expected = sum(makes_above_expected),
             average_above_expected = mean(makes_above_expected),
             .groups = 'drop')%>%
+  filter(kicker_player_name %in% c("J.Bates", "J.Tucker", "C.Boswell", "C.Dicker", "B.Aubrey", "C.McLaughlin", "J.Elliott", "T.Bass", "J.Sanders", "H.Butker", "T.Loop", "K.Fairbairn", "C.Santos", "J.Karty", "M.Gay", "W.Lutz", "E.McPherson", "D.Carlson", "B.McManus", "J.Myers", "W.Reichard", "Y.Koo", "Z.Gonzalez", "J.Moody", "C.Little", "A.Borregales", "C.Ryland", "G.Gano", "D.Hopkins", "M.Wright", "S.Shrader", "B.Grupe", "J.Slye", "J.McAtamney", "J.Parker Romo", "C.Davis", "A.Carlson", "G.Zuerlein", "N.Folk", "G.Joseph", "E.Pineiro", "A.Seibert", "M.Prater", "B.Narveson", "L.Havrisik", "C.York", "T.Brown", "C.Dunn", "R.Bullock", "B.Maher", "M.Ammendola", "N.Sciba", "J.Garibay", "R.Patterson", "J. McCourt", "C.Shudak", "M.Badgley"))%>%
   arrange(desc(average_above_expected))
 
 head(ranked_kickers_average_current, 10)
 ```
 
+Plotting these
+```{r}
+mean_total_above_expected = mean(ranked_kickers_total_current$total_above_expected)
 
 
+current_kickers_kicks_above_exp_plot = ggplot(ranked_kickers_total_current, 
+  mapping = aes(x = kicker_player_name, 
+  y = total_above_expected))+
+  geom_point()+
+  geom_hline(yintercept = mean_total_above_expected, 
+             linetype = "dashed", color = "red")+
+  dark_theme_minimal()+
+  theme(axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    panel.grid = element_blank())+
+  geom_text_repel(aes(label = kicker_player_name), 
+                  nudge_y = -0.5,
+                  direction = "y",
+                  segment.size = 0.2, 
+                  size = 3)+
+  labs(title = "Total Kicks Made Above Expected", 
+       subtitle = "current NFL kickers",
+       x = "Player",
+       y = "Kicks Above Expected")
 
+current_kickers_kicks_above_exp_plot
+```
+
+Now doing it for % above expected
+```{r}
+mean_avg_above_expected = mean(ranked_kickers_average_current$average_above_expected)
+
+current_kickers_avg_above_exp_plot = ggplot(ranked_kickers_average_current, 
+  mapping = aes(x = kicker_player_name,                                                     y = average_above_expected,
+  size = kicks_attempted))+
+  geom_point()+
+  geom_hline(yintercept = mean_avg_above_expected, 
+             linetype = "dashed", color = "red")+
+  geom_text_repel(aes(label = kicker_player_name), 
+                  nudge_y = -0.005,
+                  direction = "y",
+                  segment.size = 0.2, 
+                  size = 3)+
+  dark_theme_minimal()+
+  theme(axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    panel.grid = element_blank())+
+  labs(title = "Average Kicks Made Above Expected", 
+       subtitle = "Current NFL Kickers",
+       x = "",
+       y = "Average KoE")
+
+current_kickers_avg_above_exp_plot
+
+```
+
+##Field Goals only
+
+We know field goals are more important because of the weight they naturally carry in terms of points, so let's filter attempts down to just those to see if anything is different.
+```{r}
+ ranked_kickers_fgs = ranked_kickers%>%
+  filter(field_goal_attempt == 1)
+
+ranked_kickers_fg_total = ranked_kickers_fgs%>%
+  group_by(kicker_player_name)%>%
+  summarise(fgs_attempted = n(),
+            fgs_made = sum(result),
+            percentage = (fgs_made / fgs_attempted),
+            total_above_expected = sum(makes_above_expected),
+            average_above_expected = mean(makes_above_expected),
+            .groups = 'drop')%>%
+  arrange(desc(total_above_expected))
+
+head(ranked_kickers_fg_total, 10)
+```
+
+historical average field goals above expected
+```{r}
+ranked_kickers_fg_avg = ranked_kickers_fgs%>%
+  group_by(kicker_player_name)%>%
+  summarise(fgs_attempted = n(),
+            fgs_made = sum(result),
+            percentage = (fgs_made / fgs_attempted),
+            total_above_expected = sum(makes_above_expected),
+            average_above_expected = mean(makes_above_expected),
+            .groups = 'drop')%>%
+  arrange(desc(average_above_expected))
+
+head(ranked_kickers_fg_avg, 10)
+```
+
+Current Kickers Total:
+```{r}
+ranked_kickers_fg_current = ranked_kickers_fgs%>%
+  filter(kicker_player_name %in% c("J.Bates", "J.Tucker", "C.Boswell", "C.Dicker", "B.Aubrey", "C.McLaughlin", "J.Elliott", "T.Bass", "J.Sanders", "H.Butker", "T.Loop", "K.Fairbairn", "C.Santos", "J.Karty", "M.Gay", "W.Lutz", "E.McPherson", "D.Carlson", "B.McManus", "J.Myers", "W.Reichard", "Y.Koo", "Z.Gonzalez", "J.Moody", "C.Little", "A.Borregales", "C.Ryland", "G.Gano", "D.Hopkins", "M.Wright", "S.Shrader", "B.Grupe", "J.Slye", "J.McAtamney", "J.Parker Romo", "C.Davis", "A.Carlson", "G.Zuerlein", "N.Folk", "G.Joseph", "E.Pineiro", "A.Seibert", "M.Prater", "B.Narveson", "L.Havrisik", "C.York", "T.Brown", "C.Dunn", "R.Bullock", "B.Maher", "M.Ammendola", "N.Sciba", "J.Garibay", "R.Patterson", "J. McCourt", "C.Shudak", "M.Badgley"))%>%
+  group_by(kicker_player_name)%>%
+  summarise(fgs_attempted = n(),
+            fgs_made = sum(result),
+            percentage = (fgs_made / fgs_attempted),
+            total_above_expected = sum(makes_above_expected),
+            average_above_expected = mean(makes_above_expected),
+            .groups = 'drop')%>%
+  arrange(desc(total_above_expected))
+
+head(ranked_kickers_fg_current, 10)
+
+```
+
+Current average fg's
+```{r}
+ranked_kickers_fg_current_avg = ranked_kickers_fgs%>%
+  filter(kicker_player_name %in% c("J.Bates", "J.Tucker", "C.Boswell", "C.Dicker", "B.Aubrey", "C.McLaughlin", "J.Elliott", "T.Bass", "J.Sanders", "H.Butker", "T.Loop", "K.Fairbairn", "C.Santos", "J.Karty", "M.Gay", "W.Lutz", "E.McPherson", "D.Carlson", "B.McManus", "J.Myers", "W.Reichard", "Y.Koo", "Z.Gonzalez", "J.Moody", "C.Little", "A.Borregales", "C.Ryland", "G.Gano", "D.Hopkins", "M.Wright", "S.Shrader", "B.Grupe", "J.Slye", "J.McAtamney", "J.Parker Romo", "C.Davis", "A.Carlson", "G.Zuerlein", "N.Folk", "G.Joseph", "E.Pineiro", "A.Seibert", "M.Prater", "B.Narveson", "L.Havrisik", "C.York", "T.Brown", "C.Dunn", "R.Bullock", "B.Maher", "M.Ammendola", "N.Sciba", "J.Garibay", "R.Patterson", "J. McCourt", "C.Shudak", "M.Badgley"))%>%
+  group_by(kicker_player_name)%>%
+  summarise(fgs_attempted = n(),
+            fgs_made = sum(result),
+            percentage = (fgs_made / fgs_attempted),
+            total_above_expected = sum(makes_above_expected),
+            average_above_expected = mean(makes_above_expected),
+            .groups = 'drop')%>%
+  arrange(desc(average_above_expected))
+
+head(ranked_kickers_fg_current_avg, 10)
+```
+
+Plotting Field Goal Kicking Efficiency for Current Kickers
+```{r}
+mean_fg_above_expected = mean(ranked_kickers_fg_current$total_above_expected)
+
+
+current_kickers_kicks_above_exp_plot = ggplot(ranked_kickers_fg_current, 
+  mapping = aes(x = kicker_player_name, 
+  y = total_above_expected))+
+  geom_point()+
+  geom_hline(yintercept = mean_fg_above_expected, 
+             linetype = "dashed", color = "red")+
+  dark_theme_minimal()+
+  theme(axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    panel.grid = element_blank())+
+  geom_text_repel(aes(label = kicker_player_name), 
+                  nudge_y = -0.5,
+                  direction = "y",
+                  segment.size = 0.2, 
+                  size = 3)+
+  labs(title = "Total Field Goals Made Above Expected", 
+       subtitle = "current NFL kickers",
+       x = "Player",
+       y = "FG's Above Expected")
+
+current_kickers_kicks_above_exp_plot
+```
+
+Average field goals made above expected for Current kickers
+```{r}
+mean_avg_fg_above_expected = mean(ranked_kickers_fg_current_avg$average_above_expected)
+
+
+current_kickers_kicks_above_exp_plot = ggplot(ranked_kickers_fg_current_avg, 
+  mapping = aes(x = kicker_player_name, 
+  y = average_above_expected))+
+  geom_point()+
+  geom_hline(yintercept = mean_avg_fg_above_expected, 
+             linetype = "dashed", color = "red")+
+  dark_theme_minimal()+
+  theme(axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    panel.grid = element_blank())+
+  geom_text_repel(aes(label = kicker_player_name), 
+                  nudge_y = -0.005,
+                  direction = "y",
+                  segment.size = 0.2, 
+                  size = 3)+
+  labs(title = "Average Field Goals Made Above Expected", 
+       subtitle = "current NFL kickers",
+       x = "Player",
+       y = "Average FGoE")
+
+current_kickers_kicks_above_exp_plot
+```
 
 
 
