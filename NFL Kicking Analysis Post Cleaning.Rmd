@@ -1271,7 +1271,8 @@ mean_total_above_expected = mean(ranked_kickers_total_current$total_above_expect
 
 current_kickers_kicks_above_exp_plot = ggplot(ranked_kickers_total_current, 
   mapping = aes(x = kicker_player_name, 
-  y = total_above_expected))+
+  y = total_above_expected,
+  size = kicks_attempted))+
   geom_point()+
   geom_hline(yintercept = mean_total_above_expected, 
              linetype = "dashed", color = "red")+
@@ -1395,7 +1396,8 @@ mean_fg_above_expected = mean(ranked_kickers_fg_current$total_above_expected)
 
 current_kickers_kicks_above_exp_plot = ggplot(ranked_kickers_fg_current, 
   mapping = aes(x = kicker_player_name, 
-  y = total_above_expected))+
+  y = total_above_expected,
+  size = fgs_attempted))+
   geom_point()+
   geom_hline(yintercept = mean_fg_above_expected, 
              linetype = "dashed", color = "red")+
@@ -1421,9 +1423,10 @@ Average field goals made above expected for Current kickers
 mean_avg_fg_above_expected = mean(ranked_kickers_fg_current_avg$average_above_expected)
 
 
-current_kickers_kicks_above_exp_plot = ggplot(ranked_kickers_fg_current_avg, 
+current_kickers_avg_kicks_above_exp_plot = ggplot(ranked_kickers_fg_current_avg, 
   mapping = aes(x = kicker_player_name, 
-  y = average_above_expected))+
+  y = average_above_expected,
+  size = fgs_attempted))+
   geom_point()+
   geom_hline(yintercept = mean_avg_fg_above_expected, 
              linetype = "dashed", color = "red")+
@@ -1441,11 +1444,304 @@ current_kickers_kicks_above_exp_plot = ggplot(ranked_kickers_fg_current_avg,
        x = "Player",
        y = "Average FGoE")
 
-current_kickers_kicks_above_exp_plot
+current_kickers_avg_kicks_above_exp_plot
 ```
 
+##Who are the best kickers in long distance situations (50+)?
+```{r}
+ ranked_kickers_long = ranked_kickers%>%
+  filter(kick_distance >= 50)
+
+ranked_kickers_long_total = ranked_kickers_long%>%
+  group_by(kicker_player_name)%>%
+  summarise(fgs_attempted = n(),
+            fgs_made = sum(result),
+            percentage = (fgs_made / fgs_attempted),
+            total_above_expected = sum(makes_above_expected),
+            average_above_expected = mean(makes_above_expected),
+            .groups = 'drop')%>%
+  arrange(desc(total_above_expected))
+
+head(ranked_kickers_long_total, 10)
+```
+ Matt Prater actually added the most total kicks (field goals) above expected in terms of attempts over 50+ yards from a historical perspective
+
+Average kicks made above expected over 50+
+```{r}
+ranked_kickers_long_avg = ranked_kickers_long%>%
+  group_by(kicker_player_name)%>%
+  summarise(fgs_attempted = n(),
+            fgs_made = sum(result),
+            percentage = (fgs_made / fgs_attempted),
+            total_above_expected = sum(makes_above_expected),
+            average_above_expected = mean(makes_above_expected),
+            .groups = 'drop')%>%
+  arrange(desc(average_above_expected))
+
+head(ranked_kickers_long_avg, 10)
+```
+You can already see some names of current players starting to make their appearance: Jake Bates and Brendan Aubrey creating value above 50 yards on a play by play basis.
 
 
+Current players total kicks above expected 50+
+```{r}
+ranked_kickers_long_current = ranked_kickers_long%>%
+  filter(kicker_player_name %in% c("J.Bates", "J.Tucker", "C.Boswell", "C.Dicker", "B.Aubrey", "C.McLaughlin", "J.Elliott", "T.Bass", "J.Sanders", "H.Butker", "T.Loop", "K.Fairbairn", "C.Santos", "J.Karty", "M.Gay", "W.Lutz", "E.McPherson", "D.Carlson", "B.McManus", "J.Myers", "W.Reichard", "Y.Koo", "Z.Gonzalez", "J.Moody", "C.Little", "A.Borregales", "C.Ryland", "G.Gano", "D.Hopkins", "M.Wright", "S.Shrader", "B.Grupe", "J.Slye", "J.McAtamney", "J.Parker Romo", "C.Davis", "A.Carlson", "G.Zuerlein", "N.Folk", "G.Joseph", "E.Pineiro", "A.Seibert", "M.Prater", "B.Narveson", "L.Havrisik", "C.York", "T.Brown", "C.Dunn", "R.Bullock", "B.Maher", "M.Ammendola", "N.Sciba", "J.Garibay", "R.Patterson", "J. McCourt", "C.Shudak", "M.Badgley"))%>%
+  group_by(kicker_player_name)%>%
+  summarise(fgs_attempted = n(),
+            fgs_made = sum(result),
+            percentage = (fgs_made / fgs_attempted),
+            total_above_expected = sum(makes_above_expected),
+            average_above_expected = mean(makes_above_expected),
+            .groups = 'drop')%>%
+  arrange(desc(total_above_expected))
+
+head(ranked_kickers_long_current, 10)
+```
+
+Here are your leaders in terms of total career value in kicking above expectations on 50+ yard plays
+
+Matt Prater
+Justin Tucker
+Chris Boswell
+Nick Folk
+Chase McGlaughlin
+Younghoe Koo
+Brendan Aubrey
+Evan Mcphearson
+Kiami Fairbairn
+Jason Myers
+
+Play by play value 50+ current:
+```{r}
+ranked_kickers_long_current_avg = ranked_kickers_long%>%
+  filter(kicker_player_name %in% c("J.Bates", "J.Tucker", "C.Boswell", "C.Dicker", "B.Aubrey", "C.McLaughlin", "J.Elliott", "T.Bass", "J.Sanders", "H.Butker", "T.Loop", "K.Fairbairn", "C.Santos", "J.Karty", "M.Gay", "W.Lutz", "E.McPherson", "D.Carlson", "B.McManus", "J.Myers", "W.Reichard", "Y.Koo", "Z.Gonzalez", "J.Moody", "C.Little", "A.Borregales", "C.Ryland", "G.Gano", "D.Hopkins", "M.Wright", "S.Shrader", "B.Grupe", "J.Slye", "J.McAtamney", "J.Parker Romo", "C.Davis", "A.Carlson", "G.Zuerlein", "N.Folk", "G.Joseph", "E.Pineiro", "A.Seibert", "M.Prater", "B.Narveson", "L.Havrisik", "C.York", "T.Brown", "C.Dunn", "R.Bullock", "B.Maher", "M.Ammendola", "N.Sciba", "J.Garibay", "R.Patterson", "J. McCourt", "C.Shudak", "M.Badgley"))%>%
+  group_by(kicker_player_name)%>%
+  summarise(fgs_attempted = n(),
+            fgs_made = sum(result),
+            percentage = (fgs_made / fgs_attempted),
+            total_above_expected = sum(makes_above_expected),
+            average_above_expected = mean(makes_above_expected),
+            .groups = 'drop')%>%
+  arrange(desc(average_above_expected))
+
+head(ranked_kickers_long_current_avg, 10)
+```
+
+On a Play by Play basis Jake Bates and Brendan Aubrey are crushing it for kicks past 50 yards
+
+Plots total 50+
+```{r}
+mean_fg_above_expected_long = mean(ranked_kickers_long_current$total_above_expected)
+
+
+current_kickers_kicks_above_exp_long_plot = ggplot(ranked_kickers_long_current, 
+  mapping = aes(x = kicker_player_name, 
+  y = total_above_expected,
+  size = fgs_attempted))+
+  geom_point()+
+  geom_hline(yintercept = mean_fg_above_expected_long, 
+             linetype = "dashed", color = "red")+
+  dark_theme_minimal()+
+  theme(axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    panel.grid = element_blank())+
+  geom_text_repel(aes(label = kicker_player_name), 
+                  nudge_y = -0.5,
+                  direction = "y",
+                  segment.size = 0.2, 
+                  size = 3)+
+  labs(title = "Career Total Field Goals Made Above Expected", 
+       subtitle = "current NFL kickers for kicks 50 yards or longer",
+       x = "Player",
+       y = "FG's Above Expected")
+
+current_kickers_kicks_above_exp_long_plot
+```
+
+play by play 50+ plot
+```{r}
+mean_avg_fg_above_expected_long = mean(ranked_kickers_long_current_avg$average_above_expected)
+
+
+current_kickers_avg_kicks_above_exp_long_plot = ggplot(ranked_kickers_long_current_avg, 
+  mapping = aes(x = kicker_player_name, 
+  y = average_above_expected,
+  size = fgs_attempted))+
+  geom_point()+
+  geom_hline(yintercept = mean_avg_fg_above_expected_long, 
+             linetype = "dashed", color = "red")+
+  dark_theme_minimal()+
+  theme(axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    panel.grid = element_blank())+
+  geom_text_repel(aes(label = kicker_player_name), 
+                  nudge_y = -0.005,
+                  direction = "y",
+                  segment.size = 0.2, 
+                  size = 3)+
+  labs(title = "Average Field Goals Made Above Expected", 
+       subtitle = "current NFL kickers for kicks 50+ yards or greater",
+       x = "Player",
+       y = "Average FGoE")
+
+current_kickers_avg_kicks_above_exp_long_plot
+```
+
+Jake Bates has a small sample size right now but look how well he's performing on a play by play basis compared to the rest of the field.
+
+##Who is the best clutch kicker?
+I'm defining clutch as qualifying via one of these 3 scenarios:
+
+4th Quarter or Overtime
+
+Game Tying or Go-Ahead Kicks (Win Probability impact)
+
+Close Game Situations (Score Differential ≤ 3 points)
+
+clutch binary variable
+```{r}
+ranked_kickers_clutch = ranked_kickers%>%
+  mutate(score_diff = abs(total_home_score - total_away_score),
+         is_clutch = ifelse(qtr >= 4 & score_diff <= 3 & abs(wpa) >= 0.01, 1, 0)) 
+```
+
+clutch df
+```{r}
+clutch_kicker_stats = ranked_kickers_clutch%>%
+  filter(is_clutch == 1)%>%
+  group_by(kicker_player_name)%>%
+  summarise(clutch_attempts = n(),
+            clutch_makes = sum(result),
+            clutch_percentage = clutch_makes / clutch_attempts,
+            clutch_total_above_exp = sum(makes_above_expected),
+            clutch_avg_above_exp = mean(makes_above_expected),
+            .groups = 'drop')%>%
+  arrange(desc(clutch_avg_above_exp))
+
+head(clutch_kicker_stats, 10)
+```
+
+Let me try to break this down in a few ways:
+
+according to "clutch" situations
+
+Adam Vinatieri has the most clutch makes overall
+
+A lot of kickers have the best clutch percentage (limited reps)
+
+Matt Prater has made the most field goals above expected in clutch situations.
+
+Jake Bates, Aubrey, Dicker, Wright, and Reichard get in on a play by play basis (again limited reps)
+
+Clutch with reps:
+```{r}
+clutch_kicker_stats_with_reps = ranked_kickers_clutch%>%
+  filter(is_clutch == 1)%>%
+  group_by(kicker_player_name)%>%
+  summarise(clutch_attempts = n(),
+            clutch_makes = sum(result),
+            clutch_percentage = clutch_makes / clutch_attempts,
+            clutch_total_above_exp = sum(makes_above_expected),
+            clutch_avg_above_exp = mean(makes_above_expected),
+            .groups = 'drop')%>%
+            filter(clutch_attempts >= 50)%>% ##You can modify this to whichever threshold
+  arrange(desc(clutch_avg_above_exp))
+
+head(clutch_kicker_stats_with_reps, 10)
+```
+
+Current clutch kickers ranked::
+```{r}
+clutch_kicker_current = ranked_kickers_clutch%>%
+  filter(is_clutch == 1, kicker_player_name %in% c("J.Bates", "J.Tucker", "C.Boswell", "C.Dicker", "B.Aubrey", "C.McLaughlin", "J.Elliott", "T.Bass", "J.Sanders", "H.Butker", "T.Loop", "K.Fairbairn", "C.Santos", "J.Karty", "M.Gay", "W.Lutz", "E.McPherson", "D.Carlson", "B.McManus", "J.Myers", "W.Reichard", "Y.Koo", "Z.Gonzalez", "J.Moody", "C.Little", "A.Borregales", "C.Ryland", "G.Gano", "D.Hopkins", "M.Wright", "S.Shrader", "B.Grupe", "J.Slye", "J.McAtamney", "J.Parker Romo", "C.Davis", "A.Carlson", "G.Zuerlein", "N.Folk", "G.Joseph", "E.Pineiro", "A.Seibert", "M.Prater", "B.Narveson", "L.Havrisik", "C.York", "T.Brown", "C.Dunn", "R.Bullock", "B.Maher", "M.Ammendola", "N.Sciba", "J.Garibay", "R.Patterson", "J. McCourt", "C.Shudak", "M.Badgley"))%>%
+  group_by(kicker_player_name)%>%
+  summarise(clutch_attempts = n(),
+            clutch_makes = sum(result),
+            clutch_percentage = clutch_makes / clutch_attempts,
+            clutch_total_above_exp = sum(makes_above_expected),
+            clutch_avg_above_exp = mean(makes_above_expected),
+            .groups = 'drop')%>%
+  arrange(desc(clutch_avg_above_exp))
+
+head(clutch_kicker_current, 10)
+```
+
+##Who is the best kicker in the worst weather conditions?
+I'm defining bad weather situations as applying to one of these 2 conditions:
+
+Windy Conditions (wind ≥ 10 mph)
+
+Cold Weather (temp ≤ 40°F)
+
+
+wind conditions:
+```{r}
+windy_kicks = ranked_kickers%>%
+  filter(wind >= 10)%>%
+  group_by(kicker_player_name)%>%
+  summarise(windy_attempts = n(),
+            windy_makes = sum(result),
+            windy_percentage = windy_makes / windy_attempts,
+            windy_total_above_exp = sum(makes_above_expected),
+            windy_avg_above_exp = mean(makes_above_expected),
+            .groups = 'drop')%>%
+  arrange(desc(windy_total_above_exp))
+
+head(windy_kicks, 10)
+```
+
+cold conditions:
+```{r}
+cold_kicks = ranked_kickers%>%
+  filter(temp <= 40)%>%
+  group_by(kicker_player_name)%>%
+  summarise(cold_attempts = n(),
+            cold_makes = sum(result),
+            cold_percentage = cold_makes / cold_attempts,
+            cold_total_above_exp = sum(makes_above_expected),
+            cold_avg_above_exp = mean(makes_above_expected),
+            .groups = 'drop')%>%
+  arrange(desc(cold_total_above_exp))
+
+head(cold_kicks, 10)
+```
+
+best current windy kickers:
+```{r}
+windy_kicks_current = ranked_kickers%>%
+  filter(wind >= 10,
+         kicker_player_name %in% c("J.Bates", "J.Tucker", "C.Boswell", "C.Dicker", "B.Aubrey", "C.McLaughlin", "J.Elliott", "T.Bass", "J.Sanders", "H.Butker", "T.Loop", "K.Fairbairn", "C.Santos", "J.Karty", "M.Gay", "W.Lutz", "E.McPherson", "D.Carlson", "B.McManus", "J.Myers", "W.Reichard", "Y.Koo", "Z.Gonzalez", "J.Moody", "C.Little", "A.Borregales", "C.Ryland", "G.Gano", "D.Hopkins", "M.Wright", "S.Shrader", "B.Grupe", "J.Slye", "J.McAtamney", "J.Parker Romo", "C.Davis", "A.Carlson", "G.Zuerlein", "N.Folk", "G.Joseph", "E.Pineiro", "A.Seibert", "M.Prater", "B.Narveson", "L.Havrisik", "C.York", "T.Brown", "C.Dunn", "R.Bullock", "B.Maher", "M.Ammendola", "N.Sciba", "J.Garibay", "R.Patterson", "J. McCourt", "C.Shudak", "M.Badgley"))%>%
+  group_by(kicker_player_name)%>%
+  summarise(windy_attempts = n(),
+            windy_makes = sum(result),
+            windy_percentage = windy_makes / windy_attempts,
+            windy_total_above_exp = sum(makes_above_expected),
+            windy_avg_above_exp = mean(makes_above_expected),
+            .groups = 'drop')%>%
+  arrange(desc(windy_total_above_exp))
+
+head(windy_kicks_current, 10)
+```
+
+best cold current kickers:
+```{r}
+cold_kicks_current = ranked_kickers%>%
+  filter(temp <= 40,
+         kicker_player_name %in% c("J.Bates", "J.Tucker", "C.Boswell", "C.Dicker", "B.Aubrey", "C.McLaughlin", "J.Elliott", "T.Bass", "J.Sanders", "H.Butker", "T.Loop", "K.Fairbairn", "C.Santos", "J.Karty", "M.Gay", "W.Lutz", "E.McPherson", "D.Carlson", "B.McManus", "J.Myers", "W.Reichard", "Y.Koo", "Z.Gonzalez", "J.Moody", "C.Little", "A.Borregales", "C.Ryland", "G.Gano", "D.Hopkins", "M.Wright", "S.Shrader", "B.Grupe", "J.Slye", "J.McAtamney", "J.Parker Romo", "C.Davis", "A.Carlson", "G.Zuerlein", "N.Folk", "G.Joseph", "E.Pineiro", "A.Seibert", "M.Prater", "B.Narveson", "L.Havrisik", "C.York", "T.Brown", "C.Dunn", "R.Bullock", "B.Maher", "M.Ammendola", "N.Sciba", "J.Garibay", "R.Patterson", "J. McCourt", "C.Shudak", "M.Badgley"))%>%
+  group_by(kicker_player_name)%>%
+  summarise(cold_attempts = n(),
+            cold_makes = sum(result),
+            cold_percentage = cold_makes / cold_attempts,
+            cold_total_above_exp = sum(makes_above_expected),
+            cold_avg_above_exp = mean(makes_above_expected),
+            .groups = 'drop')%>%
+  arrange(desc(cold_total_above_exp))
+
+head(cold_kicks_current, 10)
+```
+
+## EPA/WPA produced analysis
 
 
 
