@@ -1259,7 +1259,8 @@ ranked_kickers_average_current = ranked_kickers%>%
             average_above_expected = mean(makes_above_expected),
             .groups = 'drop')%>%
   filter(kicker_player_name %in% c("J.Bates", "J.Tucker", "C.Boswell", "C.Dicker", "B.Aubrey", "C.McLaughlin", "J.Elliott", "T.Bass", "J.Sanders", "H.Butker", "T.Loop", "K.Fairbairn", "C.Santos", "J.Karty", "M.Gay", "W.Lutz", "E.McPherson", "D.Carlson", "B.McManus", "J.Myers", "W.Reichard", "Y.Koo", "Z.Gonzalez", "J.Moody", "C.Little", "A.Borregales", "C.Ryland", "G.Gano", "D.Hopkins", "M.Wright", "S.Shrader", "B.Grupe", "J.Slye", "J.McAtamney", "J.Parker Romo", "C.Davis", "A.Carlson", "G.Zuerlein", "N.Folk", "G.Joseph", "E.Pineiro", "A.Seibert", "M.Prater", "B.Narveson", "L.Havrisik", "C.York", "T.Brown", "C.Dunn", "R.Bullock", "B.Maher", "M.Ammendola", "N.Sciba", "J.Garibay", "R.Patterson", "J. McCourt", "C.Shudak", "M.Badgley"))%>%
-  arrange(desc(average_above_expected))
+  arrange(desc(average_above_expected))%>%
+  mutate(AMoE_current_rank = row_number())
 
 head(ranked_kickers_average_current, 10)
 ```
@@ -1367,7 +1368,7 @@ ranked_kickers_fg_current = ranked_kickers_fgs%>%
             total_above_expected = sum(makes_above_expected),
             average_above_expected = mean(makes_above_expected),
             .groups = 'drop')%>%
-  arrange(desc(total_above_expected))
+  arrange(desc(average_above_expected))
 
 head(ranked_kickers_fg_current, 10)
 
@@ -1384,7 +1385,8 @@ ranked_kickers_fg_current_avg = ranked_kickers_fgs%>%
             total_above_expected = sum(makes_above_expected),
             average_above_expected = mean(makes_above_expected),
             .groups = 'drop')%>%
-  arrange(desc(average_above_expected))
+  arrange(desc(average_above_expected))%>%
+  mutate(AMoE_FG_current_rank = row_number())
 
 head(ranked_kickers_fg_current_avg, 10)
 ```
@@ -1523,7 +1525,8 @@ ranked_kickers_long_current_avg = ranked_kickers_long%>%
             total_above_expected = sum(makes_above_expected),
             average_above_expected = mean(makes_above_expected),
             .groups = 'drop')%>%
-  arrange(desc(average_above_expected))
+  arrange(desc(average_above_expected))%>%
+  mutate(long_current_rank = row_number())
 
 head(ranked_kickers_long_current_avg, 10)
 ```
@@ -1662,7 +1665,8 @@ clutch_kicker_current = ranked_kickers_clutch%>%
             clutch_total_above_exp = sum(makes_above_expected),
             clutch_avg_above_exp = mean(makes_above_expected),
             .groups = 'drop')%>%
-  arrange(desc(clutch_avg_above_exp))
+  arrange(desc(clutch_avg_above_exp))%>%
+  mutate(clutch_current_rank = row_number())
 
 head(clutch_kicker_current, 10)
 ```
@@ -1719,7 +1723,8 @@ windy_kicks_current = ranked_kickers%>%
             windy_total_above_exp = sum(makes_above_expected),
             windy_avg_above_exp = mean(makes_above_expected),
             .groups = 'drop')%>%
-  arrange(desc(windy_total_above_exp))
+  arrange(desc(windy_avg_above_exp))%>%
+  mutate(windy_current_rank = row_number())
 
 head(windy_kicks_current, 10)
 ```
@@ -1736,12 +1741,281 @@ cold_kicks_current = ranked_kickers%>%
             cold_total_above_exp = sum(makes_above_expected),
             cold_avg_above_exp = mean(makes_above_expected),
             .groups = 'drop')%>%
-  arrange(desc(cold_total_above_exp))
+  arrange(desc(cold_avg_above_exp))%>%
+  mutate(cold_current_rank = row_number())
 
 head(cold_kicks_current, 10)
 ```
 
 ## EPA/WPA produced analysis
+Now I want to see kickers in terms of how the produce EPA/WPA
+
+Historical EPA
+```{r}
+epa_kickers = ranked_kickers%>%
+  group_by(kicker_player_name)%>%
+  summarise(kick_attempts = n(),
+            total_epa = sum(epa),
+            epa_per_attempt = total_epa / kick_attempts,
+            .groups = 'drop')%>%
+  arrange(desc(epa_per_attempt))
+
+head(epa_kickers, 10)
+```
+
+Historically, Justin Tucker has generated the most total epa, and ranks top 8 all time in epa per attempt (4th among those with 50+ attemtps)
+
+Historical WPA
+```{r}
+wpa_kickers = ranked_kickers%>%
+  group_by(kicker_player_name)%>%
+  summarise(kick_attempts = n(),
+            total_wpa = sum(wpa),
+            wpa_per_attempt = total_wpa / kick_attempts,
+            .groups = 'drop')%>%
+  arrange(desc(wpa_per_attempt))%>%
+  filter(kick_attempts >= 50) ##again you cna manipulate this threshold
+
+head(wpa_kickers, 10)
+```
+
+Justin Tucker has also generated the most total WPA historically and is 10th all time in wpa per attempt for kickers with at least 50 attempts (jake Bates isn #1 already)
+
+Current players EPA:
+```{r}
+epa_kickers_current = ranked_kickers%>%
+  group_by(kicker_player_name)%>%
+  summarise(kick_attempts = n(),
+            total_epa = sum(epa),
+            epa_per_attempt = total_epa / kick_attempts,
+            .groups = 'drop')%>%
+  arrange(desc(epa_per_attempt))%>%
+  filter(kicker_player_name %in% c("J.Bates", "J.Tucker", "C.Boswell", "C.Dicker", "B.Aubrey", "C.McLaughlin", "J.Elliott", "T.Bass", "J.Sanders", "H.Butker", "T.Loop", "K.Fairbairn", "C.Santos", "J.Karty", "M.Gay", "W.Lutz", "E.McPherson", "D.Carlson", "B.McManus", "J.Myers", "W.Reichard", "Y.Koo", "Z.Gonzalez", "J.Moody", "C.Little", "A.Borregales", "C.Ryland", "G.Gano", "D.Hopkins", "M.Wright", "S.Shrader", "B.Grupe", "J.Slye", "J.McAtamney", "J.Parker Romo", "C.Davis", "A.Carlson", "G.Zuerlein", "N.Folk", "G.Joseph", "E.Pineiro", "A.Seibert", "M.Prater", "B.Narveson", "L.Havrisik", "C.York", "T.Brown", "C.Dunn", "R.Bullock", "B.Maher", "M.Ammendola", "N.Sciba", "J.Garibay", "R.Patterson", "J. McCourt", "C.Shudak", "M.Badgley"))%>%
+  mutate(epa_per_current_rank = row_number())
+
+head(epa_kickers_current, 10)
+```
+
+Among active players in the league, Again Justin Tucker is the best in raw EPA, but there's quite a few notable kickers:
+
+current EPA PLOT
+```{r}
+mean_avg_epa = mean(epa_kickers_current$total_epa)
+
+
+EPA_current_kickers_plot = ggplot(epa_kickers_current, 
+  mapping = aes(x = kicker_player_name, 
+  y = total_epa,
+  size = kick_attempts))+
+  geom_point()+
+  geom_hline(yintercept = mean_avg_epa, 
+             linetype = "dashed", color = "red")+
+  dark_theme_minimal()+
+  theme(axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    panel.grid = element_blank())+
+  geom_text_repel(aes(label = kicker_player_name), 
+                  nudge_y = -0.005,
+                  direction = "y",
+                  segment.size = 0.2, 
+                  size = 3)+
+  labs(title = "Total EPA generated", 
+       subtitle = "current NFL kickers",
+       x = "Player",
+       y = "EPA")
+
+EPA_current_kickers_plot
+```
+
+Current kickers EPA per attempt:
+```{r}
+mean_avg_epa_per_attempt = mean(epa_kickers_current$epa_per_attempt)
+
+
+EPA_per_current_kickers_plot = ggplot(epa_kickers_current, 
+  mapping = aes(x = kicker_player_name, 
+  y = epa_per_attempt,
+  size = kick_attempts))+
+  geom_point()+
+  geom_hline(yintercept = mean_avg_epa_per_attempt, 
+             linetype = "dashed", color = "red")+
+  dark_theme_minimal()+
+  theme(axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    panel.grid = element_blank())+
+  geom_text_repel(aes(label = kicker_player_name), 
+                  nudge_y = -0.005,
+                  direction = "y",
+                  segment.size = 0.2, 
+                  size = 3)+
+  labs(title = "EPA-Per Attempt", 
+       subtitle = "by current NFL kickers",
+       x = "Player",
+       y = "EPA-PA")
+
+EPA_per_current_kickers_plot
+```
+
+WPA Current Players
+```{r}
+wpa_kickers_current = ranked_kickers%>%
+  group_by(kicker_player_name)%>%
+  summarise(kick_attempts = n(),
+            total_wpa = sum(wpa),
+            wpa_per_attempt = total_wpa / kick_attempts,
+            .groups = 'drop')%>%
+  arrange(desc(wpa_per_attempt))%>%
+  filter(kicker_player_name %in% c("J.Bates", "J.Tucker", "C.Boswell", "C.Dicker", "B.Aubrey", "C.McLaughlin", "J.Elliott", "T.Bass", "J.Sanders", "H.Butker", "T.Loop", "K.Fairbairn", "C.Santos", "J.Karty", "M.Gay", "W.Lutz", "E.McPherson", "D.Carlson", "B.McManus", "J.Myers", "W.Reichard", "Y.Koo", "Z.Gonzalez", "J.Moody", "C.Little", "A.Borregales", "C.Ryland", "G.Gano", "D.Hopkins", "M.Wright", "S.Shrader", "B.Grupe", "J.Slye", "J.McAtamney", "J.Parker Romo", "C.Davis", "A.Carlson", "G.Zuerlein", "N.Folk", "G.Joseph", "E.Pineiro", "A.Seibert", "M.Prater", "B.Narveson", "L.Havrisik", "C.York", "T.Brown", "C.Dunn", "R.Bullock", "B.Maher", "M.Ammendola", "N.Sciba", "J.Garibay", "R.Patterson", "J. McCourt", "C.Shudak", "M.Badgley"))%>%
+  mutate(wpa_per_current_rank = row_number())
+
+head(wpa_kickers_current, 10)
+```
+
+Among current NFL kickers Tucker leads again in raw WPA generated, and is top 6 in wpa per attempt but note how jake bates, wright, little, and dicker are already off to strong starts with 50+ reps.
+
+Total WPA current players
+```{r}
+mean_avg_wpa = mean(wpa_kickers_current$total_wpa)
+
+
+WPA_current_kickers_plot = ggplot(wpa_kickers_current, 
+  mapping = aes(x = kicker_player_name, 
+  y = total_wpa,
+  size = kick_attempts))+
+  geom_point()+
+  geom_hline(yintercept = mean_avg_wpa, 
+             linetype = "dashed", color = "red")+
+  dark_theme_minimal()+
+  theme(axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    panel.grid = element_blank())+
+  geom_text_repel(aes(label = kicker_player_name), 
+                  nudge_y = -0.005,
+                  direction = "y",
+                  segment.size = 0.2, 
+                  size = 3)+
+  labs(title = "Total WPA Generated", 
+       subtitle = "by current NFL kickers",
+       x = "Player",
+       y = "WPA")
+
+WPA_current_kickers_plot
+```
+
+WPA per attempt current players
+```{r}
+mean_avg_wpa_per_attempt = mean(wpa_kickers_current$wpa_per_attempt)
+
+
+WPA_per_current_kickers_plot = ggplot(wpa_kickers_current, 
+  mapping = aes(x = kicker_player_name, 
+  y = wpa_per_attempt,
+  size = kick_attempts))+
+  geom_point()+
+  geom_hline(yintercept = mean_avg_wpa_per_attempt, 
+             linetype = "dashed", color = "red")+
+  dark_theme_minimal()+
+  theme(axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    panel.grid = element_blank())+
+  geom_text_repel(aes(label = kicker_player_name), 
+                  nudge_y = -0.005,
+                  direction = "y",
+                  segment.size = 0.2, 
+                  size = 3)+
+  labs(title = "WPA-Per Attempt", 
+       subtitle = "by current NFL kickers",
+       x = "Player",
+       y = "WPA-PA")
+
+WPA_per_current_kickers_plot
+```
+
+##Final Ranking of Current Kickers
+Now to answer the final question of how we are going to determine a list, one singular list of where each current kicker stands. I'm going to take each kicker's ranking:
+
+-average kicks made above expected
+
+-average FG's made above expected
+
+-average KoE for "long" 50+ situations
+
+-average KoE for "clutch" situations
+
+-average KoE for "windy" attempts
+
+-average KoE for "cold" attempts
+
+-EPA per attempt
+
+WPA per attempt 
+
+and compile them into one set ranked list. All will be weighted equally for now.
+
+
+Compiling one big ranking
+```{r}
+final_ranked_current_kickers = ranked_kickers_average_current%>%
+  dplyr::select(kicker_player_name, AMoE_current_rank)%>%
+  
+  left_join(ranked_kickers_fg_current_avg%>%
+              dplyr::select(kicker_player_name, AMoE_FG_current_rank),
+            by = "kicker_player_name")%>%
+  
+  left_join(ranked_kickers_long_current_avg%>%
+              dplyr::select(kicker_player_name, long_current_rank),
+            by = "kicker_player_name")%>%
+  
+  left_join(clutch_kicker_current%>%
+              dplyr::select(kicker_player_name, clutch_current_rank),
+            by = "kicker_player_name")%>%
+  
+  left_join(windy_kicks_current%>%
+              dplyr::select(kicker_player_name, windy_current_rank),
+            by = "kicker_player_name")%>%
+  
+  left_join(cold_kicks_current%>%
+              dplyr::select(kicker_player_name, cold_current_rank),
+            by = "kicker_player_name")%>%
+  
+  left_join(epa_kickers_current%>%
+              dplyr::select(kicker_player_name, epa_per_current_rank),
+            by = "kicker_player_name")%>%
+  
+  left_join(wpa_kickers_current%>%
+              dplyr::select(kicker_player_name, wpa_per_current_rank),
+            by = "kicker_player_name")%>%
+  
+  mutate(final_composite_score = (AMoE_current_rank + 
+                       AMoE_FG_current_rank +
+                       long_current_rank +
+                       clutch_current_rank +
+                       windy_current_rank +
+                       cold_current_rank +
+                       epa_per_current_rank +
+                       wpa_per_current_rank) / 8)%>%
+  
+  arrange(final_composite_score)%>%
+  mutate(Final_Rank = row_number())%>%
+  
+  dplyr::select(kicker_player_name, 
+                Final_Rank,
+                final_composite_score,
+                AMoE_current_rank, 
+                AMoE_FG_current_rank,
+                long_current_rank,
+                clutch_current_rank,
+                windy_current_rank,
+                cold_current_rank,
+                epa_per_current_rank,
+                wpa_per_current_rank)
+
+final_ranked_current_kickers
+
+```
+
+
+
 
 
 
