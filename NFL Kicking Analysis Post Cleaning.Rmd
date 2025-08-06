@@ -1439,6 +1439,11 @@ and compile them into one set ranked list. All will be weighted equally for now.
 
 Compiling one big ranking
 ```{r}
+long_rank_mean = mean(final_ranked_current_kickers$long_current_rank, na.rm = TRUE)
+clutch_rank_mean = mean(final_ranked_current_kickers$clutch_current_rank, na.rm = TRUE)
+windy_rank_mean = mean(final_ranked_current_kickers$windy_current_rank, na.rm = TRUE)
+cold_rank_mean = mean(final_ranked_current_kickers$cold_current_rank, na.rm = TRUE)
+
 final_ranked_current_kickers = ranked_kickers_average_current%>%
   dplyr::select(kicker_player_name, AMoE_current_rank)%>%
   
@@ -1469,6 +1474,10 @@ final_ranked_current_kickers = ranked_kickers_average_current%>%
   left_join(wpa_kickers_current%>%
               dplyr::select(kicker_player_name, wpa_per_current_rank),
             by = "kicker_player_name")%>%
+  mutate(long_current_rank = ifelse(is.na(long_current_rank), long_rank_mean, long_current_rank),
+         clutch_current_rank = ifelse(is.na(clutch_current_rank), clutch_rank_mean, clutch_current_rank),
+         windy_current_rank = ifelse(is.na(windy_current_rank), windy_rank_mean, windy_current_rank),
+         cold_current_rank = ifelse(is.na(cold_current_rank), cold_rank_mean, cold_current_rank))%>%
   
   mutate(final_composite_score = (AMoE_current_rank + 
                        AMoE_FG_current_rank +
@@ -1498,9 +1507,31 @@ final_ranked_current_kickers
 
 ```
 
+##What would the ranking be if say we only wanted to look at current kickers with at least 100 attempts:
 
+```{r}
+final_ranked_current_kickers_100 = final_ranked_current_kickers%>%
+  dplyr::select(kicker_player_name, Final_Rank, final_composite_score, 
+                AMoE_current_rank, AMoE_FG_current_rank, long_current_rank, 
+                clutch_current_rank, windy_current_rank, cold_current_rank, 
+                epa_per_current_rank, wpa_per_current_rank)%>%
+  left_join(ranked_kickers_total_current%>% 
+              dplyr::select(kicker_player_name, kicks_attempted), 
+            by = "kicker_player_name")%>%
+  filter(kicks_attempted >= 100)%>%
+  arrange(Final_Rank)%>%
+  mutate(Final_Rank_100 = row_number())%>%
+  dplyr::select(kicker_player_name, Final_Rank_100, Final_Rank, final_composite_score, 
+                AMoE_current_rank, AMoE_FG_current_rank, long_current_rank, 
+                clutch_current_rank, windy_current_rank, cold_current_rank, 
+                epa_per_current_rank, wpa_per_current_rank)
 
+head(final_ranked_current_kickers_100, 10)
+```
 
+A couple changes here:
+
+Little, Shrader, and Karty exit the top 10 due to not having the volume of kick attempts
 
 
 
