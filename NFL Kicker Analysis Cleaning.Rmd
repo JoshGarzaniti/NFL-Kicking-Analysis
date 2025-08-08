@@ -25,6 +25,7 @@ library(nflplotR)
 library(nflfastR)
 library(mice)
 library(lme4)
+library(here)
 ```
 
 ##Load in Data via NFLFastR
@@ -44,7 +45,7 @@ Since 2000, there have been 56,676 observations of plays in the nfl which either
 
 ##Save Kicking data subset.
 ```{r}
-write.csv(pbp, "G:/My Drive/Personal Projects/NFL Kicking Analysis.csv", row.names = FALSE)
+write.csv(pbp, here("NFL Kicking Analysis.csv"), row.names = FALSE)
 ```
 
 
@@ -632,12 +633,6 @@ pbp_complete[, c("drive", "ydsnet", "drive_first_downs")] =
 
 ```
 
-Let's save our work so far
-
-```{r}
-write.csv(pbp_complete, "G:/My Drive/Personal Projects/pbp_complete.csv", row.names = FALSE)
-```
-
 #Consolidating Up Surface Types
 I'm noticing a few things with the different types of surfaces here. We can probably combine "a_turf" and "astroturf" alongside the two main grasses under two common astroturf and grass values. Let's also label the blank one as unknown. 
 
@@ -682,7 +677,7 @@ table(pbp_complete$surface_type)
 ```
 Finished Cleaning DF
 ```{r}
-write.csv(pbp_complete, "G:/My Drive/Personal Projects/pbp_complete.csv", row.names = FALSE)
+write.csv(pbp_complete, here("pbp_complete.csv"), row.names = FALSE)
 ```
 
 

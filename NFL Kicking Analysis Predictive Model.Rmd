@@ -35,11 +35,12 @@ library(ROSE)
 library(Metrics)
 library(shiny)
 library(DT)
+library(here)
 ```
 
 load in pbp_complete data
 ```{r}
-pbp_complete_grouped = read.csv("G:/My Drive/Personal Projects/pbp_complete_grouped.csv")
+pbp_complete_grouped = read.csv(here("pbp_complete_grouped.csv"))
 ```
 
 ## Predictive model Data
@@ -550,17 +551,41 @@ roc_obj_final = roc(balanced_test_labels, balanced_predictions_final)
 plot(roc_obj_final, col = "forestgreen", lwd = 2, main = "ROC Curve - Balanced XGBoost Model")
 abline(a = 0, b = 1, lty = 2, col = "gray")
 ```
+Final Model SHAP Graph
+```{r}
+shap_values = shap.values(
+  xgb_model = xgb_balanced_model_final,
+  X_train   = balanced_train_data)
+```
+
+
+```{r}
+shap_long = shap.prep(
+  xgb_model = xgb_balanced_model_final,
+  X_train   = balanced_train_data)
+```
+
+
+```{r}
+shap.plot.summary(shap_long)
+```
+Saving SHAP graphr results
+```{r}
+png(filename = here("shap_summary_plot.png"),
+    width = 1200, height = 800, res = 150)
+
+shap.plot.summary(shap_long)
+
+dev.off()
+```
+
+
 
 ##Making this final model an app that Special Teams coaching staff/analysts can deploy
 
 First I want to create a cheat sheet for users to have since instead of using kicker names in the model, we used their mean fg success rate.
 
-save pbp_complete_grouped df
-```{r}
-write.csv(pbp_complete_grouped, "G:/My Drive/Personal Projects/pbp_complete_grouped.csv", row.names = FALSE)
-```
-
 save our xgb model
 ```{r}
-xgb.save(xgb_balanced_model_final, "G:/My Drive/Personal Projects/nfl_kicking_balanced_model_final.model")
+xgb.save(xgb_balanced_model_final, here("nfl_kicking_balanced_model_final.model"))
 ```
