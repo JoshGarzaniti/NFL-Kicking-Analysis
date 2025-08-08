@@ -35,16 +35,17 @@ library(ROSE)
 library(Metrics)
 library(shiny)
 library(DT)
+library(here)
 ```
 
 load in pbp data
 ```{r}
-pbp_complete_grouped = read.csv("G:/My Drive/Personal Projects/pbp_complete_grouped.csv")
+pbp_complete_grouped = read.csv(here("pbp_complete_grouped.csv"))
 ```
 
 load in final blanaced model
 ```{r}
-xgb_balanced_model_final = xgb.load("G:/My Drive/Personal Projects/nfl_kicking_balanced_model_final.model")
+xgb_balanced_model_final = xgb.load(here("nfl_kicking_balanced_model_final.model"))
 ```
 
 create a cheat sheet for kickers since we used their mean kicking fg %'s and not their names in the final model
