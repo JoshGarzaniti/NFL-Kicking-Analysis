@@ -35,12 +35,17 @@ library(ROSE)
 library(Metrics)
 library(shiny)
 library(DT)
+library(here)
+library(data.table)
+library(gt)
+library(webshot)
+library(ggpubr)
 ```
 
 
 ## Analysis
 ```{r}
-pbp_complete = read.csv("G:/My Drive/Personal Projects/pbp_complete.csv")
+pbp_complete = read.csv(here("pbp_complete.csv"))
 ```
 
 
@@ -80,6 +85,13 @@ distance_vs_probability_plot = ggplot(pbp_complete_grouped,
 
 distance_vs_probability_plot
 ```
+
+```{r}
+ggsave(here("nfl_kicking_distance_vs_probability_plot.png"),
+       distance_vs_probability_plot)
+```
+
+
 What about binning vars like temp and wind?
 
 ```{r}
@@ -118,6 +130,11 @@ distance_vs_probability_plot_2 = ggplot(pbp_complete_binned,
 distance_vs_probability_plot_2
 ```
 
+```{r}
+ggsave(here("nfl_kicking_distance_vs_probability_plot2.png"),
+       distance_vs_probability_plot_2)
+```
+
 Facet Wrap by Roof type
 
 ```{r}
@@ -139,6 +156,12 @@ distance_vs_probability_roof = ggplot(pbp_complete_binned,
 distance_vs_probability_roof
 ```
 
+```{r}
+ggsave(here("nfl_kicking_distance_vs_probability_roof.png"),
+       distance_vs_probability_roof)
+```
+
+
 What about Surface type is there a relationship between distance and surface type when it comes to the probability of making kicks?
 
 ```{r}
@@ -159,6 +182,12 @@ distance_vs_probability_surface = ggplot(pbp_complete_binned,
 
 distance_vs_probability_surface
 ```
+
+```{r}
+ggsave(here("nfl_kicking_distance_vs_probability_surface.png"),
+       distance_vs_probability_surface)
+```
+
 
 #Early Analytical Questions
 
@@ -219,6 +248,12 @@ roof_prob_boxplot = ggplot(pbp_complete_binned,
 
 roof_prob_boxplot
 ```
+
+```{r}
+ggsave(here("nfl_kicking_roof_prob_boxplot.png"),
+       roof_prob_boxplot)
+```
+
 
 Impact of surface type on kicking probability
 
@@ -311,6 +346,11 @@ long_distance_average_by_yard_plot = ggplot(long_distance_average_by_yard,
 long_distance_average_by_yard_plot
 ```
 
+```{r}
+ggsave(here("nfl_kicking_long_distance_average_by_yard_plot.png"),
+       long_distance_average_by_yard_plot)
+```
+
 This makes much more sense so those fringe cases really aren't amounting to "better" kicking at longer distances....they're just minimal tries which should be fitting more of an exponential function over distance. 
 
 So as a whole p(making a field goal over distance with respect to the number of tries (and not binning field goals) looks like this):
@@ -336,6 +376,11 @@ distance_vs_probability_plot_3 = ggplot(distance_summary,
                                           size = "Attempts")
 
 distance_vs_probability_plot_3
+```
+
+```{r}
+ggsave(here("nfl_kicking_distance_vs_probability_plot_3.png"),
+       distance_vs_probability_plot_3)
 ```
 
 ##Mixed Effect Modeling before scaling
@@ -452,6 +497,12 @@ Kicker_Random_Effects_plot1 = ggplot(random_effects_df, aes(x = reorder(kicker, 
 Kicker_Random_Effects_plot1
 
 ```
+
+```{r}
+ggsave(here("nfl_kicking_Kicker_Random_Effects_plot1.png"),
+       Kicker_Random_Effects_plot1)
+```
+
 Looking at the plot in terms of P(making a kick)
 ```{r}
 probability_function = function(logit){
@@ -481,6 +532,11 @@ Kicker_Random_Effects_prob = ggplot(random_effects_probability_df, aes(x = reord
        x = "Kicker")
 
 Kicker_Random_Effects_prob
+```
+
+```{r}
+ggsave(here("nfl_kicking_Kicker_Random_Effects_prob.png"),
+       Kicker_Random_Effects_prob)
 ```
 
 Highlighting specific players
@@ -582,9 +638,10 @@ score_differential_make_plot = ggplot(prob_by_score_diff, aes(x = score_differen
 score_differential_make_plot
 ```
 
-
-
-
+```{r}
+ggsave(here("nfl_kicking_score_differential_make_plot.png"),
+       score_differential_make_plot)
+```
 
 Quick Multi-collinearity check
 ```{r}
@@ -672,7 +729,9 @@ plot(surface_type_effect)
 
 save pbp_complete_grouped and final model
 ```{r}
-write.csv(pbp_complete_grouped, "G:/My Drive/Personal Projects/pbp_complete_grouped.csv", row.names = FALSE)
+write.csv(pbp_complete_grouped, 
+          here("pbp_complete_grouped.csv"), 
+          row.names = FALSE)
 ```
 
 ##Answering the Question:How do we rank kickers in the NFL Dynamically and who are the best kickers in the league right now? (For both Field Goals and XP's)
@@ -778,6 +837,11 @@ current_kickers_kicks_above_exp_plot = ggplot(ranked_kickers_total_current,
 current_kickers_kicks_above_exp_plot
 ```
 
+```{r}
+ggsave(here("nfl_kicking_current_kickers_kicks_above_exp_plot.png"),
+       current_kickers_kicks_above_exp_plot)
+```
+
 Now doing it for % above expected
 ```{r}
 mean_avg_above_expected = mean(ranked_kickers_average_current$average_above_expected)
@@ -804,6 +868,11 @@ current_kickers_avg_above_exp_plot = ggplot(ranked_kickers_average_current,
 
 current_kickers_avg_above_exp_plot
 
+```
+
+```{r}
+ggsave(here("nfl_kicking_current_kickers_avg_above_exp_plot.png"),
+       current_kickers_avg_above_exp_plot)
 ```
 
 ##Field Goals only
@@ -904,6 +973,11 @@ current_kickers_kicks_above_exp_plot = ggplot(ranked_kickers_fg_current,
 current_kickers_kicks_above_exp_plot
 ```
 
+```{r}
+ggsave(here("nfl_kicking_current_kickers_kicks_above_exp_plot.png"),
+       current_kickers_kicks_above_exp_plot)
+```
+
 Average field goals made above expected for Current kickers
 ```{r}
 mean_avg_fg_above_expected = mean(ranked_kickers_fg_current_avg$average_above_expected)
@@ -932,6 +1006,12 @@ current_kickers_avg_kicks_above_exp_plot = ggplot(ranked_kickers_fg_current_avg,
 
 current_kickers_avg_kicks_above_exp_plot
 ```
+
+```{r}
+ggsave(here("nfl_kicking_current_kickers_avg_kicks_above_exp_plot.png"),
+       current_kickers_avg_kicks_above_exp_plot)
+```
+
 
 ##Who are the best kickers in long distance situations (50+)?
 ```{r}
@@ -1505,7 +1585,24 @@ final_ranked_current_kickers = ranked_kickers_average_current%>%
 
 final_ranked_current_kickers
 
+final_ranked_current_kickers_dt = as.data.table(final_ranked_current_kickers)
 ```
+
+
+```{r}
+final_ranked_current_kickers_gt = gt(final_ranked_current_kickers_dt)%>%
+  tab_header(
+    title = "Final Ranked Current Kickers",
+    subtitle = "Generated from current season data")
+
+final_ranked_current_kickers_gt
+```
+
+```{r}
+gtsave(final_ranked_current_kickers_gt,
+       here("final_ranked_current_kickers.png"))
+```
+
 
 ##What would the ranking be if say we only wanted to look at current kickers with at least 100 attempts:
 
@@ -1527,7 +1624,26 @@ final_ranked_current_kickers_100 = final_ranked_current_kickers%>%
                 epa_per_current_rank, wpa_per_current_rank)
 
 head(final_ranked_current_kickers_100, 10)
+
+final_ranked_current_kickers_100_dt = as.data.table(final_ranked_current_kickers_100)
 ```
+
+
+```{r}
+final_ranked_current_kickers_100_gt = gt(final_ranked_current_kickers_100_dt)%>%
+  tab_header(
+    title = "Final Ranked Current Kickers",
+    subtitle = "with at least 100 kicking attempts")
+
+final_ranked_current_kickers_100_gt
+```
+
+```{r}
+gtsave(final_ranked_current_kickers_100_gt,
+       here("final_ranked_current_kickers_100.png"))
+```
+
+
 
 A couple changes here:
 
