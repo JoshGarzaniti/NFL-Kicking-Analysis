@@ -74,14 +74,39 @@ pbp_complete_grouped
 
 A good baseline for this is to just check by distances (our probability should be dropping of drastically by distance so let's see what that distribution looks like)
 
+Creating my own theme for visuals:
+```{r}
+theme_nfl = theme_minimal(base_size = 14) +
+  theme(
+    plot.background = element_rect(fill = "#121212", color = NA),
+    panel.background = element_rect(fill = "#121212", color = NA),
+    panel.grid = element_blank(),
+    axis.text = element_text(color = "white"),
+    axis.title = element_text(color = "white", face = "bold"),
+    plot.title = element_text(color = "white", face = "bold", size = 16),
+    plot.subtitle = element_text(color = "white", size = 12),
+    legend.background = element_rect(fill = "#121212", color = NA),
+    legend.text = element_text(color = "white"),
+    legend.title = element_text(color = "white", face = "bold"))
+```
+
+
+```{r}
+distance_result = lm(result ~ kick_distance, data = pbp_complete_grouped)
+
+summary(distance_result)
+```
+
+
 ```{r}
 distance_vs_probability_plot = ggplot(pbp_complete_grouped, 
                                       mapping = aes(x = kick_distance,
                                                     y = probability_advanced))+
                                       geom_point()+
                                       geom_smooth()+
-                                      dark_theme_minimal()+
-                                      labs(title = "NFL Kick Distance vs Make Probability (advanced)", subtitle = "from 1999-2024", x = "Distance", y = "Probability")
+                                      theme_nfl+
+                                      labs(title = "NFL Kick Distance vs Make Probability (advanced)", subtitle = "from 1999-2024", x = "Distance", y = "Probability")+
+  theme(panel.grid = element_blank())
 
 distance_vs_probability_plot
 ```
@@ -111,23 +136,33 @@ pbp_complete_binned = pbp_complete%>%
 Visualizing this
 
 ```{r}
+avg_prob = mean(pbp_complete$result, na.rm = TRUE)
 distance_vs_probability_plot_2 = ggplot(pbp_complete_binned, 
-  aes(x = kick_distance, y = probability_advanced)) +
-  geom_point(aes(size = group_n), alpha = 0.6) +
-  geom_smooth() +
+  aes(x = kick_distance, y = probability_advanced))+
+  geom_point(aes(size = group_n), alpha = 0.6, color = "grey")+
+  geom_smooth(color = "gold") +
   geom_hline(
-    yintercept = mean(pbp_complete$result, na.rm = TRUE), 
+    yintercept = avg_prob, 
     linetype = "dashed", 
     color = "red", 
     alpha = 0.6)+
-  dark_theme_minimal()+
+  annotate(
+    "text", 
+    x = max(pbp_complete_binned$kick_distance, na.rm = TRUE) - 5, 
+    y = avg_prob + 0.05, 
+    label = paste0("Average make probability = ", round(avg_prob, 3)),
+    color = "red",
+    size = 3,
+    hjust = 1.25)+
+  theme_nfl+
   labs(
     title = "NFL Kick Distance vs Make Probability (advanced)", 
     subtitle = "from 1999-2024", 
     x = "Distance", 
-    y = "Probability")
-
+    y = "Probability",
+    size = "# of Attempts")
 distance_vs_probability_plot_2
+
 ```
 
 ```{r}
@@ -139,19 +174,22 @@ Facet Wrap by Roof type
 
 ```{r}
 distance_vs_probability_roof = ggplot(pbp_complete_binned, 
-  aes(x = kick_distance, y = probability_advanced))+
+  aes(x = kick_distance, y = probability_advanced, color = roof))+
   geom_point(aes(size = group_n), alpha = 0.6)+
   geom_smooth(se = FALSE)+
   geom_hline(
     yintercept = mean(pbp_complete$result, na.rm = TRUE), 
     linetype = "dashed", color = "red", alpha = 0.6)+
   facet_wrap(~ roof)+
-  dark_theme_minimal()+
+  theme_nfl+
+  scale_color_brewer(palette = "Set2")+
   labs(
     title = "NFL Kick Distance vs Make Probability by Roof Type",
     subtitle = "From 1999–2024",
     x = "Distance",
-    y = "Make Probability")
+    y = "Make Probability",
+    size = "# of Attempts")+
+  theme(panel.grid = element_blank())
 
 distance_vs_probability_roof
 ```
@@ -166,19 +204,22 @@ What about Surface type is there a relationship between distance and surface typ
 
 ```{r}
 distance_vs_probability_surface = ggplot(pbp_complete_binned, 
-  aes(x = kick_distance, y = probability_advanced))+
+  aes(x = kick_distance, y = probability_advanced, color = surface))+
   geom_point(aes(size = group_n), alpha = 0.6)+
-  geom_smooth(se = FALSE) +
+  geom_smooth(se = FALSE)+
   geom_hline(
     yintercept = mean(pbp_complete$result, na.rm = TRUE), 
     linetype = "dashed", color = "red", alpha = 0.6)+
-  facet_wrap(~ surface) +
-  dark_theme_minimal() +
+  facet_wrap(~ surface)+
+  theme_nfl+
+  scale_color_brewer(palette = "Set2")+
   labs(
     title = "NFL Kick Distance vs Make Probability by Field Surface",
     subtitle = "From 1999–2024",
     x = "Distance",
-    y = "Make Probability")
+    y = "Make Probability",
+    size = "# of Attempts")+
+  theme(panel.grid = element_blank())
 
 distance_vs_probability_surface
 ```
@@ -241,10 +282,11 @@ Outdoor is significantly worse
 ```{r}
 roof_prob_boxplot = ggplot(pbp_complete_binned, 
                              aes(x = roof, y = probability_advanced))+
-                             geom_boxplot(fill = "skyblue", alpha = 0.7)+
-                             dark_theme_minimal() +
+                             geom_boxplot(fill = "navy", alpha = 0.7)+
+                             theme_nfl+
                              labs(title = "Probability Advanced by Roof Type", 
-                             x = "Roof Type", y = "Probability Advanced")
+                             x = "Roof Type", y = "Probability Advanced")+
+  theme(panel.grid = element_blank())
 
 roof_prob_boxplot
 ```
@@ -335,13 +377,14 @@ Plotting this out:
 long_distance_average_by_yard_plot = ggplot(long_distance_average_by_yard, 
                                             mapping = aes(x = kick_distance, 
                                                           y = average_probability))+
-                                            geom_point(aes(size = tries))+
+                                            geom_point(aes(size = tries), color = 'navy')+
                                             geom_smooth()+
-                                            dark_theme_minimal()+
+                                            theme_nfl+
                                             labs(title = "Probability of successful NFL field goal tries >= 50 yards", 
                                             subtitle = "since 1999", 
                                             x = "Yardage",
-                                            y = "Probability")
+                                            y = "Probability")+
+  theme(panel.grid = element_blank())
 
 long_distance_average_by_yard_plot
 ```
@@ -367,13 +410,14 @@ distance_vs_probability_plot_3 = ggplot(distance_summary,
                                           y = average_probability,
                                           size = tries))+
                                           geom_point(alpha = 0.6)+
-                                          geom_smooth(se = FALSE)+
-                                          dark_theme_minimal()+
+                                          geom_smooth(se = FALSE, color = "navy")+
+                                          theme_nfl+
                                           labs(title = "NFL Kick Distance vs Make Probability (Advanced)",
                                           subtitle = "from 1999–2024",
                                           x = "Distance (yards)",
                                           y = "Probability of make",
-                                          size = "Attempts")
+                                          size = "Attempts")+
+  theme(panel.grid = element_blank())
 
 distance_vs_probability_plot_3
 ```
@@ -485,22 +529,39 @@ random_effects_df = random_effects_df%>%
 Plot
 ```{r}
 Kicker_Random_Effects_plot1 = ggplot(random_effects_df, aes(x = reorder(kicker, `(Intercept)`), y = `(Intercept)`))+
-  geom_point()+
+  geom_point(aes(color = `(Intercept)`), size = 3)+  
   geom_errorbar(aes(ymin = lower, ymax = upper), width = 0.2)+
-  coord_flip()+
-  geom_hline(yintercept = 0, linetype = "dashed")+
+  coord_flip() +
+  geom_hline(yintercept = 0, linetype = "dashed", color = 'red')+
+  annotate(
+    "text",
+    x = length(unique(random_effects_df$kicker)) - 1,
+    y = -1,
+    label = "Log-odds baseline",
+    color = "red",
+    size = 4,
+    hjust = 0)+
+  scale_color_gradient2(
+    low = "red",     
+    mid = "yellow",   
+    high = "green",   
+    midpoint = 0,     
+    name = "Effect")+
   dark_theme_minimal()+
-  labs(title = "Current NFL Kicker-Specific Random Effects with 95% CI",
-       y = "Random Intercept (Effect on Log-Odds)",
-       x = "Kicker") 
+  labs(
+    title = "Current NFL Kicker-Specific Random Effects with 95% CI",
+    y = "Random Intercept (Effect on Log-Odds)",
+    x = "Kicker")+
+  theme(panel.grid = element_blank())
 
 Kicker_Random_Effects_plot1
+
 
 ```
 
 ```{r}
 ggsave(here("nfl_kicking_Kicker_Random_Effects_plot1.png"),
-       Kicker_Random_Effects_plot1)
+       Kicker_Random_Effects_plot1, height = 10, width = 8)
 ```
 
 Looking at the plot in terms of P(making a kick)
@@ -521,22 +582,29 @@ Plotting
 ```{r}
 mean_prob = mean(random_effects_probability_df$probability, na.rm = TRUE)
 
-Kicker_Random_Effects_prob = ggplot(random_effects_probability_df, aes(x = reorder(kicker, probability), y = probability)) +
-  geom_hline(yintercept = mean_prob, linetype = "dashed") +
-  geom_point() +
-  coord_flip() +
-  dark_theme_minimal() +
+Kicker_Random_Effects_prob = ggplot(random_effects_probability_df, aes(x = reorder(kicker, probability), y = probability))+
+  geom_hline(yintercept = mean_prob, linetype = "dashed")+
+  geom_point(aes(color = probability), size = 3)+
+  coord_flip()+
+  dark_theme_minimal()+
+  scale_color_gradient2(
+    low = "red",     
+    mid = "yellow",   
+    high = "green",   
+    midpoint = mean_prob,     
+    name = "Effect")+
   labs(title = "Current NFL Kicker-Specific Random Effects", 
        subtitle = "In terms of probability of making a kick",
        y = "Probability",
-       x = "Kicker")
+       x = "Kicker")+
+  theme(panel.grid = element_blank())
 
 Kicker_Random_Effects_prob
 ```
 
 ```{r}
 ggsave(here("nfl_kicking_Kicker_Random_Effects_prob.png"),
-       Kicker_Random_Effects_prob)
+       Kicker_Random_Effects_prob, height = 10, width = 8)
 ```
 
 Highlighting specific players
@@ -560,7 +628,8 @@ ggplot(random_effects_probability_df, aes(x = reorder(kicker, probability),
   labs(title = "Kicker-Specific Random Effects", 
        subtitle = "In terms of probability of making a kick",
        y = "Probability",
-       x = "Kicker")
+       x = "Kicker")+
+  theme(panel.grid = element_blank())
 
 ```
 
@@ -627,13 +696,14 @@ prob_by_score_diff = pbp_complete%>%
   summarise(prob_make = mean(result))
 
 score_differential_make_plot = ggplot(prob_by_score_diff, aes(x = score_differential, y = prob_make)) +
-  geom_point() +
+  geom_point(color = 'navy') +
   geom_smooth(method = "glm", method.args = list(family = "binomial")) +
   dark_theme_minimal() +
   labs(title = "Impact of Score Differential on NFL Kick Probability",
        subtitle = "1999-2024",
        x = "Score Differential",
-       y = "Probability of Make")
+       y = "Probability of Make")+
+  theme(panel.grid = element_blank())
 
 score_differential_make_plot
 ```
@@ -727,7 +797,7 @@ surface type
 plot(surface_type_effect)
 ```
 
-save pbp_complete_grouped and final model
+##save pbp_complete_grouped and final model
 ```{r}
 write.csv(pbp_complete_grouped, 
           here("pbp_complete_grouped.csv"), 
@@ -817,10 +887,16 @@ current_kickers_kicks_above_exp_plot = ggplot(ranked_kickers_total_current,
   mapping = aes(x = kicker_player_name, 
   y = total_above_expected,
   size = kicks_attempted))+
-  geom_point()+
+  geom_point(aes(color = total_above_expected), size = 3)+
   geom_hline(yintercept = mean_total_above_expected, 
              linetype = "dashed", color = "red")+
   dark_theme_minimal()+
+  scale_color_gradient2(
+    low = "red",     
+    mid = "yellow",   
+    high = "green",   
+    midpoint = mean_total_above_expected,     
+    name = "Effect")+
   theme(axis.text.x = element_blank(),
     axis.ticks.x = element_blank(),
     panel.grid = element_blank())+
@@ -849,7 +925,7 @@ mean_avg_above_expected = mean(ranked_kickers_average_current$average_above_expe
 current_kickers_avg_above_exp_plot = ggplot(ranked_kickers_average_current, 
   mapping = aes(x = kicker_player_name,                                                     y = average_above_expected,
   size = kicks_attempted))+
-  geom_point()+
+  geom_point(aes(color = average_above_expected), size = 3)+
   geom_hline(yintercept = mean_avg_above_expected, 
              linetype = "dashed", color = "red")+
   geom_text_repel(aes(label = kicker_player_name), 
@@ -857,7 +933,13 @@ current_kickers_avg_above_exp_plot = ggplot(ranked_kickers_average_current,
                   direction = "y",
                   segment.size = 0.2, 
                   size = 3)+
-  dark_theme_minimal()+
+  theme_nfl+
+  scale_color_gradient2(
+    low = "red",     
+    mid = "yellow",   
+    high = "green",   
+    midpoint = mean_avg_above_expected,     
+    name = "Effect")+
   theme(axis.text.x = element_blank(),
     axis.ticks.x = element_blank(),
     panel.grid = element_blank())+
@@ -873,6 +955,60 @@ current_kickers_avg_above_exp_plot
 ```{r}
 ggsave(here("nfl_kicking_current_kickers_avg_above_exp_plot.png"),
        current_kickers_avg_above_exp_plot)
+```
+AKoE for Kickers with 100 Snaps
+```{r}
+ranked_kickers_average_current_100 = ranked_kickers%>%
+  group_by(kicker_player_name)%>%
+  summarise(kicks_attempted = n(),
+            kicks_made = sum(result),
+            percentage = (kicks_made / kicks_attempted),
+            total_above_expected = sum(makes_above_expected),
+            average_above_expected = mean(makes_above_expected),
+            .groups = 'drop')%>%
+  filter(kicker_player_name %in% c("J.Bates", "J.Tucker", "C.Boswell", "C.Dicker", "B.Aubrey", "C.McLaughlin", "J.Elliott", "T.Bass", "J.Sanders", "H.Butker", "T.Loop", "K.Fairbairn", "C.Santos", "J.Karty", "M.Gay", "W.Lutz", "E.McPherson", "D.Carlson", "B.McManus", "J.Myers", "W.Reichard", "Y.Koo", "Z.Gonzalez", "J.Moody", "C.Little", "A.Borregales", "C.Ryland", "G.Gano", "D.Hopkins", "M.Wright", "S.Shrader", "B.Grupe", "J.Slye", "J.McAtamney", "J.Parker Romo", "C.Davis", "A.Carlson", "G.Zuerlein", "N.Folk", "G.Joseph", "E.Pineiro", "A.Seibert", "M.Prater", "B.Narveson", "L.Havrisik", "C.York", "T.Brown", "C.Dunn", "R.Bullock", "B.Maher", "M.Ammendola", "N.Sciba", "J.Garibay", "R.Patterson", "J. McCourt", "C.Shudak", "M.Badgley"), kicks_attempted >= 100)%>%
+  arrange(desc(average_above_expected))%>%
+  mutate(AMoE_current_rank = row_number())
+
+head(ranked_kickers_average_current_100, 10)
+```
+
+```{r}
+mean_avg_above_expected_100 = mean(ranked_kickers_average_current_100$average_above_expected)
+
+current_kickers_avg_above_exp_100_plot = ggplot(ranked_kickers_average_current_100, 
+  mapping = aes(x = kicker_player_name,                                                     y = average_above_expected,
+  size = kicks_attempted))+
+  geom_point(aes(color = average_above_expected), size = 3)+
+  geom_hline(yintercept = mean_avg_above_expected, 
+             linetype = "dashed", color = "red")+
+  geom_text_repel(aes(label = kicker_player_name), 
+                  nudge_y = -0.005,
+                  direction = "y",
+                  segment.size = 0.2, 
+                  size = 3)+
+  theme_nfl+
+  scale_color_gradient2(
+    low = "red",     
+    mid = "yellow",   
+    high = "green",   
+    midpoint = mean_avg_above_expected,     
+    name = "Effect")+
+  theme(axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    panel.grid = element_blank())+
+  labs(title = "Average Kicks Made Above Expected", 
+       subtitle = "Current NFL Kickers with at least 100 attempts",
+       x = "",
+       y = "Average KoE")
+
+current_kickers_avg_above_exp_100_plot
+
+```
+
+```{r}
+ggsave(here("nfl_kicking_current_kickers_avg_above_exp_100_plot.png"),
+       current_kickers_avg_above_exp_100_plot)
 ```
 
 ##Field Goals only
@@ -949,14 +1085,20 @@ Plotting Field Goal Kicking Efficiency for Current Kickers
 mean_fg_above_expected = mean(ranked_kickers_fg_current$total_above_expected)
 
 
-current_kickers_kicks_above_exp_plot = ggplot(ranked_kickers_fg_current, 
+current_kickers_fgs_above_exp_plot = ggplot(ranked_kickers_fg_current, 
   mapping = aes(x = kicker_player_name, 
   y = total_above_expected,
   size = fgs_attempted))+
-  geom_point()+
+  geom_point(aes(color = total_above_expected), size = 3)+
   geom_hline(yintercept = mean_fg_above_expected, 
              linetype = "dashed", color = "red")+
-  dark_theme_minimal()+
+  theme_nfl+
+  scale_color_gradient2(
+    low = "red",     
+    mid = "yellow",   
+    high = "green",   
+    midpoint = mean_fg_above_expected,     
+    name = "Effect")+
   theme(axis.text.x = element_blank(),
     axis.ticks.x = element_blank(),
     panel.grid = element_blank())+
@@ -970,12 +1112,12 @@ current_kickers_kicks_above_exp_plot = ggplot(ranked_kickers_fg_current,
        x = "Player",
        y = "FG's Above Expected")
 
-current_kickers_kicks_above_exp_plot
+current_kickers_fgs_above_exp_plot
 ```
 
 ```{r}
-ggsave(here("nfl_kicking_current_kickers_kicks_above_exp_plot.png"),
-       current_kickers_kicks_above_exp_plot)
+ggsave(here("nfl_kicking_current_kickers_fgs_above_exp_plot.png"),
+       current_kickers_fgs_above_exp_plot, height = 5, width = 8)
 ```
 
 Average field goals made above expected for Current kickers
@@ -983,14 +1125,20 @@ Average field goals made above expected for Current kickers
 mean_avg_fg_above_expected = mean(ranked_kickers_fg_current_avg$average_above_expected)
 
 
-current_kickers_avg_kicks_above_exp_plot = ggplot(ranked_kickers_fg_current_avg, 
+current_kickers_avg_fgs_above_exp_plot = ggplot(ranked_kickers_fg_current_avg, 
   mapping = aes(x = kicker_player_name, 
   y = average_above_expected,
   size = fgs_attempted))+
-  geom_point()+
+  geom_point(aes(color = average_above_expected), size = 3)+
   geom_hline(yintercept = mean_avg_fg_above_expected, 
              linetype = "dashed", color = "red")+
-  dark_theme_minimal()+
+  theme_nfl+
+  scale_color_gradient2(
+    low = "red",     
+    mid = "yellow",   
+    high = "green",   
+    midpoint = mean_avg_fg_above_expected,     
+    name = "Effect")+
   theme(axis.text.x = element_blank(),
     axis.ticks.x = element_blank(),
     panel.grid = element_blank())+
@@ -1004,12 +1152,79 @@ current_kickers_avg_kicks_above_exp_plot = ggplot(ranked_kickers_fg_current_avg,
        x = "Player",
        y = "Average FGoE")
 
-current_kickers_avg_kicks_above_exp_plot
+current_kickers_avg_fgs_above_exp_plot
 ```
 
 ```{r}
-ggsave(here("nfl_kicking_current_kickers_avg_kicks_above_exp_plot.png"),
-       current_kickers_avg_kicks_above_exp_plot)
+ggsave(here("nfl_kicking_current_kickers_avg_fgs_above_exp_plot.png"),
+       current_kickers_avg_fgs_above_exp_plot, height = 6, width = 8)
+```
+
+Average KoE (on FG Attempts) for kickers with 100 or more snaps
+```{r}
+kickers_100_attempts = ranked_kickers%>%
+  group_by(kicker_player_name)%>%
+  summarise(kicks_attempted = n(), .groups = "drop")%>%
+  filter(kicks_attempted >= 100)%>%
+  pull(kicker_player_name)
+
+
+ranked_kickers_fg_current_avg_100 = ranked_kickers_fgs%>%
+  filter(kicker_player_name %in% kickers_100_attempts)%>%
+  group_by(kicker_player_name)%>%
+  summarise(
+    fgs_attempted = n(),
+    fgs_made = sum(result),
+    percentage = fgs_made / fgs_attempted,
+    total_above_expected = sum(makes_above_expected),
+    average_above_expected = mean(makes_above_expected),
+    .groups = "drop")%>%
+  filter(kicker_player_name %in% c("J.Bates", "J.Tucker", "C.Boswell", "C.Dicker", "B.Aubrey", "C.McLaughlin", "J.Elliott", "T.Bass", "J.Sanders", "H.Butker", "T.Loop", "K.Fairbairn", "C.Santos", "J.Karty", "M.Gay", "W.Lutz", "E.McPherson", "D.Carlson", "B.McManus", "J.Myers", "W.Reichard", "Y.Koo", "Z.Gonzalez", "J.Moody", "C.Little", "A.Borregales", "C.Ryland", "G.Gano", "D.Hopkins", "M.Wright", "S.Shrader", "B.Grupe", "J.Slye", "J.McAtamney", "J.Parker Romo", "C.Davis", "A.Carlson", "G.Zuerlein", "N.Folk", "G.Joseph", "E.Pineiro", "A.Seibert", "M.Prater", "B.Narveson", "L.Havrisik", "C.York", "T.Brown", "C.Dunn", "R.Bullock", "B.Maher", "M.Ammendola", "N.Sciba", "J.Garibay", "R.Patterson", "J. McCourt", "C.Shudak", "M.Badgley"))%>%
+  arrange(desc(average_above_expected))%>%
+  mutate(AMoE_FG_current_rank = row_number())
+
+head(ranked_kickers_fg_current_avg_100, 10)
+
+
+```
+
+```{r}
+mean_avg_fg_above_expected_100 = mean(ranked_kickers_fg_current_avg_100$average_above_expected)
+
+
+current_kickers_avg_fgs_above_exp_100_plot = ggplot(ranked_kickers_fg_current_avg_100, 
+  mapping = aes(x = kicker_player_name, 
+  y = average_above_expected,
+  size = fgs_attempted))+
+  geom_point(aes(color = average_above_expected), size = 3)+
+  geom_hline(yintercept = mean_avg_fg_above_expected_100, 
+             linetype = "dashed", color = "red")+
+  theme_nfl+
+  scale_color_gradient2(
+    low = "red",     
+    mid = "yellow",   
+    high = "green",   
+    midpoint = mean_avg_fg_above_expected,     
+    name = "Effect")+
+  theme(axis.text.x = element_blank(),
+    axis.ticks.x = element_blank(),
+    panel.grid = element_blank())+
+  geom_text_repel(aes(label = kicker_player_name), 
+                  nudge_y = -0.005,
+                  direction = "y",
+                  segment.size = 0.2, 
+                  size = 3)+
+  labs(title = "Average Field Goals Made Above Expected", 
+       subtitle = "current NFL kickers with 100 attempts",
+       x = "Player",
+       y = "Average FGoE")
+
+current_kickers_avg_fgs_above_exp_100_plot
+```
+
+```{r}
+ggsave(here("nfl_kicking_current_kickers_avg_fgs_above_exp_100_plot.png"),
+       current_kickers_avg_fgs_above_exp_100_plot, height = 6, width = 8)
 ```
 
 
@@ -1106,10 +1321,16 @@ current_kickers_kicks_above_exp_long_plot = ggplot(ranked_kickers_long_current,
   mapping = aes(x = kicker_player_name, 
   y = total_above_expected,
   size = fgs_attempted))+
-  geom_point()+
+  geom_point(aes(color = total_above_expected), size = 3)+
   geom_hline(yintercept = mean_fg_above_expected_long, 
              linetype = "dashed", color = "red")+
-  dark_theme_minimal()+
+  theme_nfl+
+  scale_color_gradient2(
+    low = "red",     
+    mid = "yellow",   
+    high = "green",   
+    midpoint = mean_fg_above_expected_long,     
+    name = "Effect")+
   theme(axis.text.x = element_blank(),
     axis.ticks.x = element_blank(),
     panel.grid = element_blank())+
@@ -1135,10 +1356,16 @@ current_kickers_avg_kicks_above_exp_long_plot = ggplot(ranked_kickers_long_curre
   mapping = aes(x = kicker_player_name, 
   y = average_above_expected,
   size = fgs_attempted))+
-  geom_point()+
+  geom_point(aes(color = average_above_expected), size = 3)+
   geom_hline(yintercept = mean_avg_fg_above_expected_long, 
              linetype = "dashed", color = "red")+
-  dark_theme_minimal()+
+  theme_nfl+
+  scale_color_gradient2(
+    low = "red",     
+    mid = "yellow",   
+    high = "green",   
+    midpoint = mean_avg_fg_above_expected_long,     
+    name = "Effect")+
   theme(axis.text.x = element_blank(),
     axis.ticks.x = element_blank(),
     panel.grid = element_blank())+
@@ -1327,7 +1554,7 @@ epa_kickers = ranked_kickers%>%
 head(epa_kickers, 10)
 ```
 
-Historically, Justin Tucker has generated the most total epa, and ranks top 8 all time in epa per attempt (4th among those with 50+ attemtps)
+Historically, Justin Tucker has generated the most total epa, and ranks top 8 all time in epa per attempt (4th among those with 50+ attempts)
 
 Historical WPA
 ```{r}
@@ -1338,7 +1565,7 @@ wpa_kickers = ranked_kickers%>%
             wpa_per_attempt = total_wpa / kick_attempts,
             .groups = 'drop')%>%
   arrange(desc(wpa_per_attempt))%>%
-  filter(kick_attempts >= 50) ##again you cna manipulate this threshold
+  filter(kick_attempts >= 50) ##again you can manipulate this threshold
 
 head(wpa_kickers, 10)
 ```
@@ -1371,10 +1598,16 @@ EPA_current_kickers_plot = ggplot(epa_kickers_current,
   mapping = aes(x = kicker_player_name, 
   y = total_epa,
   size = kick_attempts))+
-  geom_point()+
+  geom_point(aes(color = total_epa), size = 3)+
   geom_hline(yintercept = mean_avg_epa, 
              linetype = "dashed", color = "red")+
-  dark_theme_minimal()+
+  theme_nfl+
+  scale_color_gradient2(
+    low = "red",     
+    mid = "yellow",   
+    high = "green",   
+    midpoint = mean_avg_epa,     
+    name = "Effect")+
   theme(axis.text.x = element_blank(),
     axis.ticks.x = element_blank(),
     panel.grid = element_blank())+
@@ -1400,10 +1633,16 @@ EPA_per_current_kickers_plot = ggplot(epa_kickers_current,
   mapping = aes(x = kicker_player_name, 
   y = epa_per_attempt,
   size = kick_attempts))+
-  geom_point()+
+  geom_point(aes(color = epa_per_attempt))+
   geom_hline(yintercept = mean_avg_epa_per_attempt, 
              linetype = "dashed", color = "red")+
-  dark_theme_minimal()+
+  theme_nfl+
+  scale_color_gradient2(
+    low = "red",     
+    mid = "yellow",   
+    high = "green",   
+    midpoint = mean_avg_epa_per_attempt,     
+    name = "Effect")+
   theme(axis.text.x = element_blank(),
     axis.ticks.x = element_blank(),
     panel.grid = element_blank())+
@@ -1446,10 +1685,16 @@ WPA_current_kickers_plot = ggplot(wpa_kickers_current,
   mapping = aes(x = kicker_player_name, 
   y = total_wpa,
   size = kick_attempts))+
-  geom_point()+
+  geom_point(aes(color = total_wpa))+
   geom_hline(yintercept = mean_avg_wpa, 
              linetype = "dashed", color = "red")+
-  dark_theme_minimal()+
+  theme_nfl+
+  scale_color_gradient2(
+    low = "red",     
+    mid = "yellow",   
+    high = "green",   
+    midpoint = mean_avg_wpa,     
+    name = "Effect")+
   theme(axis.text.x = element_blank(),
     axis.ticks.x = element_blank(),
     panel.grid = element_blank())+
@@ -1475,10 +1720,16 @@ WPA_per_current_kickers_plot = ggplot(wpa_kickers_current,
   mapping = aes(x = kicker_player_name, 
   y = wpa_per_attempt,
   size = kick_attempts))+
-  geom_point()+
+  geom_point(aes(color = wpa_per_attempt))+
   geom_hline(yintercept = mean_avg_wpa_per_attempt, 
              linetype = "dashed", color = "red")+
-  dark_theme_minimal()+
+  theme_nfl+
+  scale_color_gradient2(
+    low = "red",     
+    mid = "yellow",   
+    high = "green",   
+    midpoint = mean_avg_wpa_per_attempt,     
+    name = "Effect")+
   theme(axis.text.x = element_blank(),
     axis.ticks.x = element_blank(),
     panel.grid = element_blank())+
@@ -1519,58 +1770,50 @@ and compile them into one set ranked list. All will be weighted equally for now.
 
 Compiling one big ranking
 ```{r}
-long_rank_mean = mean(final_ranked_current_kickers$long_current_rank, na.rm = TRUE)
-clutch_rank_mean = mean(final_ranked_current_kickers$clutch_current_rank, na.rm = TRUE)
-windy_rank_mean = mean(final_ranked_current_kickers$windy_current_rank, na.rm = TRUE)
-cold_rank_mean = mean(final_ranked_current_kickers$cold_current_rank, na.rm = TRUE)
-
-final_ranked_current_kickers = ranked_kickers_average_current%>%
-  dplyr::select(kicker_player_name, AMoE_current_rank)%>%
-  
-  left_join(ranked_kickers_fg_current_avg%>%
+final_ranked_current_kickers = ranked_kickers_average_current %>%
+  dplyr::select(kicker_player_name, AMoE_current_rank) %>%
+  left_join(ranked_kickers_fg_current_avg %>%
               dplyr::select(kicker_player_name, AMoE_FG_current_rank),
-            by = "kicker_player_name")%>%
-  
-  left_join(ranked_kickers_long_current_avg%>%
+            by = "kicker_player_name") %>%
+  left_join(ranked_kickers_long_current_avg %>%
               dplyr::select(kicker_player_name, long_current_rank),
-            by = "kicker_player_name")%>%
-  
-  left_join(clutch_kicker_current%>%
+            by = "kicker_player_name") %>%
+  left_join(clutch_kicker_current %>%
               dplyr::select(kicker_player_name, clutch_current_rank),
-            by = "kicker_player_name")%>%
-  
-  left_join(windy_kicks_current%>%
+            by = "kicker_player_name") %>%
+  left_join(windy_kicks_current %>%
               dplyr::select(kicker_player_name, windy_current_rank),
-            by = "kicker_player_name")%>%
-  
-  left_join(cold_kicks_current%>%
+            by = "kicker_player_name") %>%
+  left_join(cold_kicks_current %>%
               dplyr::select(kicker_player_name, cold_current_rank),
-            by = "kicker_player_name")%>%
-  
-  left_join(epa_kickers_current%>%
+            by = "kicker_player_name") %>%
+  left_join(epa_kickers_current %>%
               dplyr::select(kicker_player_name, epa_per_current_rank),
-            by = "kicker_player_name")%>%
-  
-  left_join(wpa_kickers_current%>%
+            by = "kicker_player_name") %>%
+  left_join(wpa_kickers_current %>%
               dplyr::select(kicker_player_name, wpa_per_current_rank),
-            by = "kicker_player_name")%>%
-  mutate(long_current_rank = ifelse(is.na(long_current_rank), long_rank_mean, long_current_rank),
+            by = "kicker_player_name")
+
+long_rank_mean   = mean(final_ranked_current_kickers$long_current_rank, na.rm = TRUE)
+clutch_rank_mean = mean(final_ranked_current_kickers$clutch_current_rank, na.rm = TRUE)
+windy_rank_mean  = mean(final_ranked_current_kickers$windy_current_rank, na.rm = TRUE)
+cold_rank_mean   = mean(final_ranked_current_kickers$cold_current_rank, na.rm = TRUE)
+
+final_ranked_current_kickers = final_ranked_current_kickers %>%
+  mutate(long_current_rank   = ifelse(is.na(long_current_rank), long_rank_mean, long_current_rank),
          clutch_current_rank = ifelse(is.na(clutch_current_rank), clutch_rank_mean, clutch_current_rank),
-         windy_current_rank = ifelse(is.na(windy_current_rank), windy_rank_mean, windy_current_rank),
-         cold_current_rank = ifelse(is.na(cold_current_rank), cold_rank_mean, cold_current_rank))%>%
-  
+         windy_current_rank  = ifelse(is.na(windy_current_rank), windy_rank_mean, windy_current_rank),
+         cold_current_rank   = ifelse(is.na(cold_current_rank), cold_rank_mean, cold_current_rank)) %>%
   mutate(final_composite_score = (AMoE_current_rank + 
-                       AMoE_FG_current_rank +
-                       long_current_rank +
-                       clutch_current_rank +
-                       windy_current_rank +
-                       cold_current_rank +
-                       epa_per_current_rank +
-                       wpa_per_current_rank) / 8)%>%
-  
-  arrange(final_composite_score)%>%
-  mutate(Final_Rank = row_number())%>%
-  
+                                  AMoE_FG_current_rank +
+                                  long_current_rank +
+                                  clutch_current_rank +
+                                  windy_current_rank +
+                                  cold_current_rank +
+                                  epa_per_current_rank +
+                                  wpa_per_current_rank) / 8) %>%
+  arrange(final_composite_score) %>%
+  mutate(Final_Rank = row_number()) %>%
   dplyr::select(kicker_player_name, 
                 Final_Rank,
                 final_composite_score,
@@ -1583,8 +1826,6 @@ final_ranked_current_kickers = ranked_kickers_average_current%>%
                 epa_per_current_rank,
                 wpa_per_current_rank)
 
-final_ranked_current_kickers
-
 final_ranked_current_kickers_dt = as.data.table(final_ranked_current_kickers)
 ```
 
@@ -1593,37 +1834,208 @@ final_ranked_current_kickers_dt = as.data.table(final_ranked_current_kickers)
 final_ranked_current_kickers_gt = gt(final_ranked_current_kickers_dt)%>%
   tab_header(
     title = "Final Ranked Current Kickers",
-    subtitle = "Generated from current season data")
+    subtitle = "As of the 2025 preseason")
 
 final_ranked_current_kickers_gt
 ```
 
 ```{r}
-gtsave(final_ranked_current_kickers_gt,
-       here("final_ranked_current_kickers.png"))
+gtsave(
+  final_ranked_current_kickers_gt,
+  here("final_ranked_current_kickers.png"),
+  vwidth = 2000,
+  vheight = 800)
+```
+
+##What would the ranking be if say we only wanted to look at current kickers with at least 100 attempts:
+Using:
+
+ranked_kickers_average_current_100
+
+ranked_kickers_fg_current_avg_100
+
+Long current 100
+```{r}
+ranked_kickers_long_current_100 = ranked_kickers_long%>%
+  filter(kicker_player_name %in% kickers_100_attempts)%>%
+  group_by(kicker_player_name)%>%
+  summarise(fgs_attempted = n(),
+            fgs_made = sum(result),
+            percentage = (fgs_made / fgs_attempted),
+            total_above_expected = sum(makes_above_expected),
+            average_above_expected = mean(makes_above_expected),
+            .groups = 'drop')%>%
+  filter(kicker_player_name %in% c("J.Bates", "J.Tucker", "C.Boswell", "C.Dicker", "B.Aubrey", "C.McLaughlin", "J.Elliott", "T.Bass", "J.Sanders", "H.Butker", "T.Loop", "K.Fairbairn", "C.Santos", "J.Karty", "M.Gay", "W.Lutz", "E.McPherson", "D.Carlson", "B.McManus", "J.Myers", "W.Reichard", "Y.Koo", "Z.Gonzalez", "J.Moody", "C.Little", "A.Borregales", "C.Ryland", "G.Gano", "D.Hopkins", "M.Wright", "S.Shrader", "B.Grupe", "J.Slye", "J.McAtamney", "J.Parker Romo", "C.Davis", "A.Carlson", "G.Zuerlein", "N.Folk", "G.Joseph", "E.Pineiro", "A.Seibert", "M.Prater", "B.Narveson", "L.Havrisik", "C.York", "T.Brown", "C.Dunn", "R.Bullock", "B.Maher", "M.Ammendola", "N.Sciba", "J.Garibay", "R.Patterson", "J. McCourt", "C.Shudak", "M.Badgley"))%>%
+  arrange(desc(total_above_expected))%>%
+ mutate(Long_current_100_rank = row_number())
+
+head(ranked_kickers_long_current_100, 10)
+```
+
+clutch current 100
+```{r}
+clutch_kicker_current_100 = ranked_kickers_clutch%>%
+  filter(is_clutch == 1, kicker_player_name %in% kickers_100_attempts)%>%
+  group_by(kicker_player_name)%>%
+  summarise(
+    clutch_attempts = n(),
+    clutch_makes = sum(result),
+    clutch_percentage = clutch_makes / clutch_attempts,
+    clutch_total_above_exp = sum(makes_above_expected),
+    clutch_avg_above_exp = mean(makes_above_expected),
+    .groups = 'drop')%>%
+  filter(kicker_player_name %in% c("J.Bates", "J.Tucker", "C.Boswell", "C.Dicker", "B.Aubrey", "C.McLaughlin", "J.Elliott", "T.Bass", "J.Sanders", "H.Butker", "T.Loop", "K.Fairbairn", "C.Santos", "J.Karty", "M.Gay", "W.Lutz", "E.McPherson", "D.Carlson", "B.McManus", "J.Myers", "W.Reichard", "Y.Koo", "Z.Gonzalez", "J.Moody", "C.Little", "A.Borregales", "C.Ryland", "G.Gano", "D.Hopkins", "M.Wright", "S.Shrader", "B.Grupe", "J.Slye", "J.McAtamney", "J.Parker Romo", "C.Davis", "A.Carlson", "G.Zuerlein", "N.Folk", "G.Joseph", "E.Pineiro", "A.Seibert", "M.Prater", "B.Narveson", "L.Havrisik", "C.York", "T.Brown", "C.Dunn", "R.Bullock", "B.Maher", "M.Ammendola", "N.Sciba", "J.Garibay", "R.Patterson", "J. McCourt", "C.Shudak", "M.Badgley"))%>%
+  arrange(desc(clutch_avg_above_exp))%>%
+  mutate(clutch_current_100_rank = row_number())
+
+head(clutch_kicker_current_100, 10)
+```
+
+cold current 100
+```{r}
+cold_kicks_current_100 = ranked_kickers%>%
+  filter(
+    temp <= 40,
+    kicker_player_name %in% kickers_100_attempts)%>%
+  group_by(kicker_player_name)%>%
+  summarise(
+    cold_attempts = n(),
+    cold_makes = sum(result),
+    cold_percentage = cold_makes / cold_attempts,
+    cold_total_above_exp = sum(makes_above_expected),
+    cold_avg_above_exp = mean(makes_above_expected),
+    .groups = 'drop')%>%
+  filter(kicker_player_name %in% c("J.Bates", "J.Tucker", "C.Boswell", "C.Dicker", "B.Aubrey", "C.McLaughlin", "J.Elliott", "T.Bass", "J.Sanders", "H.Butker", "T.Loop", "K.Fairbairn", "C.Santos", "J.Karty", "M.Gay", "W.Lutz", "E.McPherson", "D.Carlson", "B.McManus", "J.Myers", "W.Reichard", "Y.Koo", "Z.Gonzalez", "J.Moody", "C.Little", "A.Borregales", "C.Ryland", "G.Gano", "D.Hopkins", "M.Wright", "S.Shrader", "B.Grupe", "J.Slye", "J.McAtamney", "J.Parker Romo", "C.Davis", "A.Carlson", "G.Zuerlein", "N.Folk", "G.Joseph", "E.Pineiro", "A.Seibert", "M.Prater", "B.Narveson", "L.Havrisik", "C.York", "T.Brown", "C.Dunn", "R.Bullock", "B.Maher", "M.Ammendola", "N.Sciba", "J.Garibay", "R.Patterson", "J. McCourt", "C.Shudak", "M.Badgley"))%>%
+  arrange(desc(cold_avg_above_exp))%>%
+  mutate(cold_current_100_rank = row_number())
+
+head(cold_kicks_current_100, 10)
+```
+
+windy current 100
+```{r}
+windy_kicks_current_100 = ranked_kickers%>%
+  filter(
+    wind >= 10,
+    kicker_player_name %in% kickers_100_attempts)%>%
+  group_by(kicker_player_name)%>%
+  summarise(
+    windy_attempts = n(),
+    windy_makes = sum(result),
+    windy_percentage = windy_makes / windy_attempts,
+    windy_total_above_exp = sum(makes_above_expected),
+    windy_avg_above_exp = mean(makes_above_expected),
+    .groups = 'drop')%>%
+  filter(kicker_player_name %in% c("J.Bates", "J.Tucker", "C.Boswell", "C.Dicker", "B.Aubrey", "C.McLaughlin", "J.Elliott", "T.Bass", "J.Sanders", "H.Butker", "T.Loop", "K.Fairbairn", "C.Santos", "J.Karty", "M.Gay", "W.Lutz", "E.McPherson", "D.Carlson", "B.McManus", "J.Myers", "W.Reichard", "Y.Koo", "Z.Gonzalez", "J.Moody", "C.Little", "A.Borregales", "C.Ryland", "G.Gano", "D.Hopkins", "M.Wright", "S.Shrader", "B.Grupe", "J.Slye", "J.McAtamney", "J.Parker Romo", "C.Davis", "A.Carlson", "G.Zuerlein", "N.Folk", "G.Joseph", "E.Pineiro", "A.Seibert", "M.Prater", "B.Narveson", "L.Havrisik", "C.York", "T.Brown", "C.Dunn", "R.Bullock", "B.Maher", "M.Ammendola", "N.Sciba", "J.Garibay", "R.Patterson", "J. McCourt", "C.Shudak", "M.Badgley"))%>%
+  arrange(desc(windy_avg_above_exp))%>%
+  mutate(windy_current_100_rank = row_number())
+
+head(windy_kicks_current_100, 10)
+```
+
+EPA Current 100
+```{r}
+epa_kickers_current_100 = ranked_kickers%>%
+  group_by(kicker_player_name)%>%
+  summarise(
+    kick_attempts = n(),
+    total_epa = sum(epa),
+    epa_per_attempt = total_epa / kick_attempts,
+    .groups = 'drop')%>%
+  filter(kicker_player_name %in% c("J.Bates", "J.Tucker", "C.Boswell", "C.Dicker", "B.Aubrey", "C.McLaughlin", "J.Elliott", "T.Bass", "J.Sanders", "H.Butker", "T.Loop", "K.Fairbairn", "C.Santos", "J.Karty", "M.Gay", "W.Lutz", "E.McPherson", "D.Carlson", "B.McManus", "J.Myers", "W.Reichard", "Y.Koo", "Z.Gonzalez", "J.Moody", "C.Little", "A.Borregales", "C.Ryland", "G.Gano", "D.Hopkins", "M.Wright", "S.Shrader", "B.Grupe", "J.Slye", "J.McAtamney", "J.Parker Romo", "C.Davis", "A.Carlson", "G.Zuerlein", "N.Folk", "G.Joseph", "E.Pineiro", "A.Seibert", "M.Prater", "B.Narveson", "L.Havrisik", "C.York", "T.Brown", "C.Dunn", "R.Bullock", "B.Maher", "M.Ammendola", "N.Sciba", "J.Garibay", "R.Patterson", "J. McCourt", "C.Shudak", "M.Badgley"))%>%
+  filter(
+    kicker_player_name %in% kickers_100_attempts)%>%
+  arrange(desc(epa_per_attempt))%>%
+  mutate(epa_per_current_100_rank = row_number())
+
+head(epa_kickers_current_100, 10)
+```
+
+WPA Current 100
+```{r}
+wpa_kickers_current_100 = ranked_kickers%>%
+  group_by(kicker_player_name)%>%
+  summarise(
+    kick_attempts = n(),
+    total_wpa = sum(wpa),
+    wpa_per_attempt = total_wpa / kick_attempts,
+    .groups = 'drop')%>%
+  filter(kicker_player_name %in% c("J.Bates", "J.Tucker", "C.Boswell", "C.Dicker", "B.Aubrey", "C.McLaughlin", "J.Elliott", "T.Bass", "J.Sanders", "H.Butker", "T.Loop", "K.Fairbairn", "C.Santos", "J.Karty", "M.Gay", "W.Lutz", "E.McPherson", "D.Carlson", "B.McManus", "J.Myers", "W.Reichard", "Y.Koo", "Z.Gonzalez", "J.Moody", "C.Little", "A.Borregales", "C.Ryland", "G.Gano", "D.Hopkins", "M.Wright", "S.Shrader", "B.Grupe", "J.Slye", "J.McAtamney", "J.Parker Romo", "C.Davis", "A.Carlson", "G.Zuerlein", "N.Folk", "G.Joseph", "E.Pineiro", "A.Seibert", "M.Prater", "B.Narveson", "L.Havrisik", "C.York", "T.Brown", "C.Dunn", "R.Bullock", "B.Maher", "M.Ammendola", "N.Sciba", "J.Garibay", "R.Patterson", "J. McCourt", "C.Shudak", "M.Badgley"))%>%
+  filter(
+    kicker_player_name %in% kickers_100_attempts)%>%
+  arrange(desc(wpa_per_attempt))%>%
+  mutate(wpa_per_current_100_rank = row_number())
+
+head(wpa_kickers_current_100, 10)
 ```
 
 
-##What would the ranking be if say we only wanted to look at current kickers with at least 100 attempts:
-
 ```{r}
-final_ranked_current_kickers_100 = final_ranked_current_kickers%>%
-  dplyr::select(kicker_player_name, Final_Rank, final_composite_score, 
-                AMoE_current_rank, AMoE_FG_current_rank, long_current_rank, 
-                clutch_current_rank, windy_current_rank, cold_current_rank, 
-                epa_per_current_rank, wpa_per_current_rank)%>%
-  left_join(ranked_kickers_total_current%>% 
-              dplyr::select(kicker_player_name, kicks_attempted), 
+final_ranked_current_kickers_100 = ranked_kickers_average_current_100%>%
+  dplyr::select(kicker_player_name, AMoE_current_rank)%>%
+  left_join(ranked_kickers_fg_current_avg_100%>%
+              dplyr::select(kicker_player_name, AMoE_FG_current_rank),
             by = "kicker_player_name")%>%
-  filter(kicks_attempted >= 100)%>%
-  arrange(Final_Rank)%>%
-  mutate(Final_Rank_100 = row_number())%>%
-  dplyr::select(kicker_player_name, Final_Rank_100, Final_Rank, final_composite_score, 
-                AMoE_current_rank, AMoE_FG_current_rank, long_current_rank, 
-                clutch_current_rank, windy_current_rank, cold_current_rank, 
-                epa_per_current_rank, wpa_per_current_rank)
+  left_join(ranked_kickers_long_current_100%>%
+              dplyr::select(kicker_player_name, Long_current_100_rank),
+            by = "kicker_player_name")%>%
+  left_join(clutch_kicker_current_100%>%
+              dplyr::select(kicker_player_name, clutch_current_100_rank),
+            by = "kicker_player_name")%>%
+  left_join(cold_kicks_current_100%>%
+              dplyr::select(kicker_player_name, cold_current_100_rank),
+            by = "kicker_player_name")%>%
+  left_join(windy_kicks_current_100%>%
+              dplyr::select(kicker_player_name, windy_current_100_rank),
+            by = "kicker_player_name")%>%
+  left_join(epa_kickers_current_100%>%
+              dplyr::select(kicker_player_name, epa_per_current_100_rank),
+            by = "kicker_player_name")%>%
+  left_join(wpa_kickers_current_100%>%
+              dplyr::select(kicker_player_name, wpa_per_current_100_rank),
+            by = "kicker_player_name")%>%
+  left_join(final_ranked_current_kickers%>%
+              dplyr::select(kicker_player_name, Final_Rank),
+            by = "kicker_player_name")
 
-head(final_ranked_current_kickers_100, 10)
+
+long_rank_mean = mean(ranked_kickers_long_current_100$Long_current_100_rank, na.rm = TRUE)
+clutch_rank_mean = mean(clutch_kicker_current_100$clutch_current_100_rank, na.rm = TRUE)
+windy_rank_mean  = mean(windy_kicks_current_100$windy_current_100_rank, na.rm = TRUE)
+cold_rank_mean   = mean(cold_kicks_current_100$cold_current_100_rank, na.rm = TRUE)
+
+
+final_ranked_current_kickers_100 = final_ranked_current_kickers_100%>%
+  mutate(
+    Long_current_100_rank   = ifelse(is.na(Long_current_100_rank),   long_rank_mean,   Long_current_100_rank),
+    clutch_current_100_rank = ifelse(is.na(clutch_current_100_rank), clutch_rank_mean, clutch_current_100_rank),
+    windy_current_100_rank  = ifelse(is.na(windy_current_100_rank),  windy_rank_mean,  windy_current_100_rank),
+    cold_current_100_rank   = ifelse(is.na(cold_current_100_rank),   cold_rank_mean,   cold_current_100_rank))%>%
+  mutate(final_composite_score_100 = (
+    AMoE_current_rank +
+    AMoE_FG_current_rank +
+    Long_current_100_rank +
+    clutch_current_100_rank +
+    windy_current_100_rank +
+    cold_current_100_rank +
+    epa_per_current_100_rank +
+    wpa_per_current_100_rank) / 8)%>%
+  arrange(final_composite_score_100)%>%
+  mutate(Final_Rank_100 = row_number())%>%
+  dplyr::select(
+    kicker_player_name,
+    Final_Rank_100,
+    Final_Rank,
+    final_composite_score_100,
+    AMoE_current_rank,
+    AMoE_FG_current_rank,
+    Long_current_100_rank,
+    clutch_current_100_rank,
+    windy_current_100_rank,
+    cold_current_100_rank,
+    epa_per_current_100_rank,
+    wpa_per_current_100_rank)
+
 
 final_ranked_current_kickers_100_dt = as.data.table(final_ranked_current_kickers_100)
 ```
@@ -1640,7 +2052,16 @@ final_ranked_current_kickers_100_gt
 
 ```{r}
 gtsave(final_ranked_current_kickers_100_gt,
-       here("final_ranked_current_kickers_100.png"))
+       here("final_ranked_current_kickers_100.png"),
+       vwidth = 2000,
+  vheight = 800)
+```
+```{r}
+final_ranked_current_kickers_100 = final_ranked_current_kickers_100%>%
+  mutate(movement = Final_Rank- Final_Rank_100)%>%
+  arrange(desc(movement))
+
+head(final_ranked_current_kickers_100, 15)
 ```
 
 
@@ -1648,6 +2069,15 @@ gtsave(final_ranked_current_kickers_100_gt,
 A couple changes here:
 
 Little, Shrader, and Karty exit the top 10 due to not having the volume of kick attempts
+
+```{r}
+distance_result = lm(result ~ kick_distance, data = pbp_complete_grouped)
+
+summary(distance_result)
+```
+
+
+
 
 
 
