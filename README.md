@@ -5,3 +5,10 @@ The only file you need for the Post Cleaning analysis is the pbp_complete.csv fi
 In the Predictive Model RMD, you do not need to run lines 431-516 (these are tuning rounds which will take hours for your system). Simply run up until 431 and skip to the chunk starting 519
 The Shiny Application will take the saved model you generated in the predictive rmd and deploy it on a UI (play around with it). 
 Enjoy :)
+
+**Copyright © 2025 Josh Garzaniti**  
+All rights reserved.  
+
+This repository and its contents are the intellectual property of the author.  
+No part of this project may be reproduced, distributed, or transmitted in any form or by any means,  
+without the prior written permission of the author.
